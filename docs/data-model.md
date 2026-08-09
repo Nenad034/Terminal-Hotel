@@ -224,9 +224,58 @@ Ovo je interni kanoničan format — svaki knjigovodstveni sistem (QuickBooks, S
 
 Upisuje se u istoj transakciji kao mutacija koju prati (aplikacioni hook), odvojeno od event magistrale (pogl. 14) koja služi integraciji, ne auditu.
 
+## 3b. HACCP, incidenti, korporativni ugovori, ESG, loyalty (poglavlja 23–28 arhitekture)
+
+### HaccpCcpLog / CorrectiveAction / SupplierCertificate
+
+| Polje | Tip | Napomena |
+|---|---|---|
+| `haccp_ccp_log.ccp_type` | text | npr. `fridge_temp`, `cooking_temp`, `delivery_check` |
+| `haccp_ccp_log.pass_fail` | boolean | Izvedeno iz `reading_value` naspram `threshold_min/max` |
+| `corrective_action.linked_log_id` / `linked_incident_id` | UUID FK nullable (tačno jedno) | **Deljen entitet** između HACCP-a i incidenata (pogl. 24) — jedan sub-model za "šta je urađeno povodom problema" |
+| `supplier_certificate.vendor_id` | UUID FK → `vendor` (nabavka, pogl. 6) | |
+
+### IncidentReport
+
+| Polje | Tip | Napomena |
+|---|---|---|
+| `incident_type` | text CHECK | `guest_injury \| workplace_accident \| security \| property_damage \| other` |
+| `involved_guest_id`, `involved_employee_id` | UUID FK nullable | Najviše jedno popunjeno po incidentu (poslovno pravilo, ne DB constraint) |
+| `evidence_refs` | jsonb | Foto/video reference (spoljno skladište) |
+| `insurance_claim_reference` | text nullable | Veza ka eksternom RMIS/osiguranju — van šeme |
+
+### CorporateAccount + proširenje RatePlan-a
+
+| Polje | Tip | Napomena |
+|---|---|---|
+| `corporate_account.access_code` | text unique | Gost unosi pri rezervaciji da vidi cenu |
+| `rate_plan.corporate_account_id` | UUID FK nullable | Novo polje na postojećoj tabeli (pogl. 3) |
+| `rate_plan.last_room_availability` | boolean | Override flag — rate/availability engine mora ga poštovati i zaobići stop-sell/min-LOS/closed-to-arrival kad je `true` |
+
+### EsgMetric / Certification
+
+| Polje | Tip | Napomena |
+|---|---|---|
+| `esg_metric.metric_type` | text CHECK | `energy \| water \| waste \| carbon` |
+| `esg_metric.source` | text CHECK | `iot_sensor \| manual` — deli infrastrukturu sa energetskim menadžmentom (pogl. 8) |
+| `certification.program` | text CHECK | `green_key \| earthcheck \| green_globe \| leed` |
+
+### Loyalty (LoyaltyPointTransaction / LoyaltyTier / LoyaltyTierAssignment / RedemptionCatalogItem)
+
+| Polje | Tip | Napomena |
+|---|---|---|
+| `loyalty_point_transaction.guest_profile_id` | UUID FK | Ponovna upotreba postojećeg identiteta, ne novi "member" entitet |
+| `loyalty_point_transaction.type` | text CHECK | `earn \| redeem \| expire \| adjust` — **append-only, redovi se nikad ne menjaju** |
+| `loyalty_point_transaction.hold_until` | timestamptz nullable | Bodovi nisu trošivi dok boravak ne postane nepovratan |
+| `loyalty_tier.qualifying_nights_threshold`, `qualifying_stays_threshold`, `qualifying_spend_threshold` | int/int/numeric, sve nullable | **OR logika** — ispunjen bilo koji prag dodeljuje nivo (Hilton Honors obrazac), ne AND |
+| `loyalty_tier_assignment` | — | Istorija dodela nivoa, ne samo trenutni nivo — omogućava "koji je nivo gost imao u trenutku boravka X" |
+
+Saldo bodova po gostu se **ne** čuva kao mutabilno polje — izvodi se (i keširano osvežava) iz `loyalty_point_transaction` ledger-a, isti princip kao Folio koji se izvodi iz `folio_line_item`.
+
 ## 4. Šta namerno NIJE u ovoj šemi (v1)
 
 - Nabavka/magacin (Item, Vendor, PurchaseOrder...) — poglavlje 6 arhitekture, zasebna migracija kad krene Faza 2.
 - Kanal menadžer/OTA sinhronizacija — `reservation.channel_reference` je zadržan kao kuka za to, ali sama sinhronizaciona logika je van PMS jezgra.
 - Fiskalizacija/SEF/eTurista adapteri — `folio` i `reservation` imaju dovoljno polja (guest ID dokument, iznosi) da se adapter doda bez menjanja šeme, ali sam adapter nije deo ove migracije.
 - **Sam Package orkestracioni servis** (saga state, veza ka flights/transfers aplikaciji) — namerno živi u zasebnom repou/servisu, ne u ovoj bazi. Ovde je samo ugovor (hold/confirm/cancel) i referentno polje `external_package_id`.
+- **Online reputacija/recenzije** (pogl. 27) — namerno bez nove tabele. Integracija je plitka (webhook-out ka vendoru pri checkout-u, konzument koristi vendorov dashboard) — jedina dodirna tačka je postojeći `guest_profile.marketing_consent` flag koji gejtuje da li se zahtev šalje.

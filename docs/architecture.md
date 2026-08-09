@@ -391,7 +391,69 @@ Ko je šta menjao kad, kroz ceo sistem — bitno za SOC 2 spremnost s obzirom da
 
 **SOC 2 minimum:** logovati autentikaciju, dodelu privilegija, promene konfiguracije, izvoz podataka; retencija min. 12 meseci hot + hladno skladište dalje; tamper-evidence obavezan (hash-lanac dovoljan).
 
-## 23. API reference (konsolidovano)
+## 23. HACCP i bezbednost hrane
+
+Odvojeno od food-cost praćenja (pogl. 6) — bezbednost, ne troškovi. HACCP = sedam principa po EU Regulativi 852/2004 čl. 5(2): identifikacija opasnosti, CCP identifikacija, kritični limiti (frižider ≤5°C, zamrzivač ≤-18°C, kuvanje ≥75°C), monitoring procedure, korektivne akcije, verifikacija, dokumentacija.
+
+**Pravni osnov:** obavezno u EU (852/2004 čl. 5); u Srbiji Zakon o bezbednosti hrane čl. 47 (obaveza po objektu), čl. 48 (kvalifikovano lice), čl. 73 (inspekcija), čl. 79 (kazne 300.000–3.000.000 RSD).
+
+**Vendori:** FoodDocs (auto HACCP plan, otvoren API za senzore), Jolt (temperaturni senzori/alarmi), Trail (food safety + fire safety + incident u istoj platformi), SafetyCulture/iAuditor (javan developer API).
+
+**Novi entiteti:** `HaccpCcpLog` (property_id, ccp_type, location_reference, reading_value, unit, threshold_min/max, occurred_at, staff_employee_id, pass_fail), `CorrectiveAction` (linked_log_id ili linked_incident_id — deljen sa pogl. 24, action_taken, resolved_by_employee_id, resolved_at), `SupplierCertificate` (vendor_id → nabavka pogl. 6, cert_type, issuing_body, expiry_date, document_reference). Deli IoT senzor infrastrukturu sa energetskim menadžmentom (pogl. 8).
+
+## 24. Nezgode i bezbednosni incidenti
+
+Nema formalnog modula za povredu gosta/radnu nezgodu — samo generički `Task`. Nije duboko ugrađeno u glavne ops platforme (Quore, HotSOS, ALICE) — pravi risk-management alati su horizontalni: **SafetyCulture**, **Origami Risk** (RMIS/EHS/GRC), **Intelex** (EHS), ili hospitality checklist app (**Trail**). Ovo je stvaran, potvrđen tržišni gap — vredi sopstvenog modula sa čistom integracionom tačkom ka RMIS sistemu grupe (podaci moraju ići i ka osiguranju/pravnoj službi).
+
+**Novi entitet:** `IncidentReport` (property_id, incident_type: guest_injury|workplace_accident|security|property_damage|other, occurred_at, location, involved_guest_id/involved_employee_id nullable, description, severity, evidence_refs jsonb, root_cause, status, reported_by_employee_id, insurance_claim_reference nullable). Koristi isti `CorrectiveAction` entitet kao HACCP.
+
+## 25. Korporativni ugovori i RFP
+
+Pregovarane korporativne cene su drugačije od dinamičkih OTA kanala (pogl. 4) — kompanija dobija fiksnu popust cenu na osnovu godišnjeg ugovora.
+
+**Tehnički obrazac:** korporativna cena je RatePlan sa ograničenom vidljivošću vezan za `CorporateAccount`, gost unosi korporativni kod pri rezervaciji. **Last Room Availability (LRA)** je ključna razlika — ugovorna garancija da cena ostaje dostupna čak i kad je hotel popunjen; zahteva override flag koji zaobilazi stop-sell/min-LOS/closed-to-arrival logiku specifično za LRA-označene planove — stvarna integraciona tačka sa RMS-om, ne samo popust polje.
+
+**RFP softver:** **Cvent** ima zaseban proizvod "Win Corporate Travel" (odvojeno od MICE Cvent proizvoda iz pogl. 12) — upravljanje RFP-ovima, distribucija cena, praćenje performansi, 155.000+ travel menadžera u mreži. HotelPlanner pokriva samo grupne/event upite, ne korporativni RFP ciklus.
+
+**Proširenje šeme:** nov entitet `CorporateAccount` (company_name, contract_start, contract_end, access_code); nova polja na postojećem `rate_plan` (pogl. 13): `corporate_account_id` (nullable FK) i `last_room_availability` (boolean).
+
+## 26. Održivost / ESG izveštavanje
+
+Nadovezuje se na energetski menadžment (pogl. 8), ali fali izveštajni sloj. Sertifikacije: **Green Key** (FEE, 9.000+ objekata/90+ zemalja), **EarthCheck**, **Green Globe** (kriterijumi po ISO 21401), **LEED** (opšti građevinski standard).
+
+**Softver/standardi:** **Greenview Portal** — realan ESG softver za hotelijerstvo, prati Scope 1/2/3 karbon (Hotel Footprinting Tool), benčmarkuje preko Cornell CHSB Index-a. **HCMI** (Hotel Carbon Measurement Initiative) — potvrđen standard (Sustainable Hospitality Alliance + WTTC, na GHG Protocol osnovi), karbon po zauzetoj sobi po danu.
+
+**Zaključak:** izveštajni sloj iznad postojećih energy-IoT podataka, ne nov operativni podsistem — gap je standardizovana export šema (HCMI, HWMI) plus feed za vodu/otpad. EU CSRD direktiva je realna i aktivna, ali direktan zahtev prema hotelima kao dobavljačima nije potvrđen istraživanjem — tretirati kao verovatan trend, ne potvrđen mandat.
+
+**Novi entiteti:** `EsgMetric` (property_id, metric_type: energy|water|waste|carbon, period_start/end, value, unit, source: iot_sensor|manual), `Certification` (property_id, program: green_key|earthcheck|green_globe|leed, status, audit_date, expiry_date).
+
+## 27. Online reputacija i recenzije
+
+Kompletno nepokrivena kategorija do sada. **ReviewPro** (Shiji — 140+ izvora, Global Review Index™, potvrđen okidač sa Daylight PMS), **TrustYou** (CXP/CDP/Agents — **jedini sa javnim pull API-jem**, Meta-Review API, 80+ izvora), **Revinate Feedback** (već poznat CRM vendor — potvrđeno dvostruke namene, deli isti Rich Guest Profile sa CRM-om), **GuestRevu** (10.000+ objekata, ankete sa granajućom logikom), Medallia (generička enterprise CX, tanja hotel dokumentacija).
+
+**Okidač i dubina integracije:** PMS/CRS je izvor okidača — checkout/zatvaranje folija → stay-completion event → vendor šalje automatsku anketu/zahtev za recenziju 1-3 dana kasnije. Ovo je **plitka integracija** (webhook napolje, osoblje koristi vendorov dashboard) — izuzev TrustYou-ovog pull API-ja ako se želi prikaz u sopstvenom dashboard-u. Rezultati pišu nazad u isti guest profile ID (Revinate obrazac).
+
+**GDPR napomena:** nije definitivno rešeno da li zahtev za recenziju zahteva isti marketing opt-in kao promo email. Preporuka: koristiti postojeći `marketing_consent` flag na `guest_profile` (pogl. 13), bez novog consent podsistema.
+
+**OTA rangiranje:** potvrđeno recenziranom studijom (2023, *IJHM*, 429.000+ recenzija) da review skor stvarno utiče na Booking.com prikaz — tačna formula je vlasnička/nedokumentovana, ali revenue posledica je realna, ne samo estetska.
+
+## 28. Booking engine i loyalty mehanika
+
+Pomenuli smo "booking widget" (pogl. 4) i `loyalty_tier` polje (pogl. 13), bez stvarne mehanike.
+
+**Booking engine:** SynXis (Sabre/Aven Hospitality), **Cloudbeds Booking Engine** (javan API), **Mews Booking Engine** (javan API, potvrđeno 20% rezervacija uključuje upsell), **Triptease** (rate-intelligence sloj iznad 120+ booking engine-a, "Price Match"), **Net Affinity** (Property Cross Sell, Member Rates). Upsell pri rezervaciji je danas standard, ne diferencijator. Abandoned-cart recovery i best-rate-guarantee tipično žive u bolt-on sloju, ne u samom booking engine-u.
+
+**Rate-parity enforcement:** RateGain, Triptease, Lighthouse (bivši OTA Insight) — svi implementiraju rate-shopping bot + rules engine + rate-push API. Nema otvorenog standarda, licencirani feed-ovi (ne sirov scraping).
+
+**Loyalty — build vs. buy:** **Loyalty Juggernaut/GRAVTY®** — cross-vertikalni loyalty-as-a-service, Cendyn partnerstvo (nov. 2025), javna dokumentacija (`docs.gravty.io`), 400M+ članova u produkciji. Cendyn paralelno drži sopstveni lakši modul — signal da loyalty nije rešen problem čak ni za vodeći CRM vendor. Generički retail loyalty (Como, Annex Cloud) nije potvrđen u stvarnoj hotelskoj upotrebi.
+
+**Nivoi:** realan obrazac (Hilton Honors) zahteva **OR logiku kroz više dimenzija** (noćenja ILI boravci ILI potrošnja), ne jedan prag.
+
+**Points ledger:** append-only nepromenljiv ledger (earn/redeem/expire/adjust), atomska naplata uz row-level lock, FIFO isticanje, hold period dok boravak ne postane nepovratan, keširan saldo (denormalizovan, osvežen iz ledger-a).
+
+**Novi entiteti:** `LoyaltyPointTransaction` (guest_profile_id, type: earn|redeem|expire|adjust, amount, source_reservation_id nullable, earned_at, expires_at, hold_until, status: pending|posted|expired), `LoyaltyTier` (tier_name, qualifying_nights/stays/spend_threshold — OR logika, benefits jsonb), `LoyaltyTierAssignment` (guest_profile_id, tier_id, effective_from/to, qualifying_period), `RedemptionCatalogItem` (name, point_cost, type: voucher|upgrade|free_night|partner_reward).
+
+## 29. API reference (konsolidovano)
 
 Pun spisak sa statusom dostupnosti: videti artifact, poglavlje 17. Ključni javno dokumentovani API-ji za direktno modelovanje:
 - `docs.oracle.com/en/industries/hospitality/integration-platform` (OHIP)
@@ -411,12 +473,14 @@ Pun spisak sa statusom dostupnosti: videti artifact, poglavlje 17. Ključni javn
 - `octo.travel`, `bokun.dev`, `developer.fareharbor.com`, `developers.rezdy.com`, `docs.ventrata.com`, `docs.viator.com/partner-api`, `code.getyourguide.com`, `klook.gitbook.io/openapi`
 - `iata.org/en/programs/airline-distribution/retailing/ndc`, `duffel.com/docs`, `developers.amadeus.com/self-service/category/flights`, `developer.sabre.com`, `mozio.com/business-partners`, `docs.cartrawler.com`
 - `actabl.com/labor-management-software/perfectlabor`, `ukg.com/products/features/time-and-attendance`, `str.com`, `m3as.com/accounting-core`, `bookingcenter.com/products/hybrid-pms`
+- `fooddocs.com`, `developer.safetyculture.com`, `trailapp.com`, `cvent.com/en/hospitality-cloud`, `greenview.sg`, `greenkey.global`, `earthcheck.org`, `greenglobe.com`
+- `resources.trustyou.com/media/trustyou-meta-review-api`, `shijigroup.com/reviewpro-reputation`, `developers.cloudbeds.com`, `docs.mews.com`, `docs.gravty.io`
 
-## 24. Matrica modula po tipu hotela
+## 30. Matrica modula po tipu hotela
 
-Pun prikaz (25 modula × 5 tipova hotela): videti artifact, poglavlje 24.
+Pun prikaz (27 modula × 5 tipova hotela): videti artifact, poglavlje 30.
 
-## 25. Predloženi fazni plan
+## 31. Predloženi fazni plan
 
 1. **Faza 1 — jezgro:** Rezervacije, front desk, folio, housekeeping tabla, gost profil, prost magacin. Pokriva budget/boutique. Šema od starta uključuje `held` status i `external_package_id` — paketizacija (pogl. 15) ne zahteva kasniju migraciju sheme.
    - **Paralelan track, nezavisan od faza 2–5:** implementirati `/package-quotes`, `/reservations/hold`, `/confirm`, `/cancel` i TTL sweep čim postoji realan sagovornik na strani flights/transfers aplikacije.
@@ -424,5 +488,7 @@ Pun prikaz (25 modula × 5 tipova hotela): videti artifact, poglavlje 24.
 3. **Faza 3 — pristup i IoT:** Middleware za brave (start sa Salto zbog javnog API-ja), minibar i energetski adapteri.
 4. **Faza 4 — usklađenost (RS):** Fiskalizacija, SEF e-Faktura, eTurista, PCI-DSS tokenizacija, GDPR cascade-delete.
 5. **Faza 5 — resort moduli:** Spa/wellness, MICE, agregacija aktivnosti/izleta (concierge sloj), centralna kuhinja, multi-tenant za lance.
+6. **Faza 6 — poslovni sloj:** Ljudski resursi (raspored/evidencija), finansije/KPI (GL export, STR), audit log, HACCP, incidenti, korporativni ugovori/RFP, ESG, reputacija/recenzije, booking engine/loyalty. Većina ovih je nezavisna od faza 2–5 (isti "paralelan track" princip kao paketizacija) i može se raditi čim postoji poslovna potreba, ne mora čekati redosled.
+7. **Trajno, van redosleda:** offline režim front deska (pogl. 20) — v1 rešenje (zakazan izvoz) ide odmah uz Fazu 1; arhitektonski lokalni cache-node gradi se tek kad konkretna lokacija to zahteva.
 
 Svaka faza nezavisno isporučiva zahvaljujući modularnom monolitu — granice domena moraju biti jasne od početka, ne moraju svi moduli postojati odjednom.
