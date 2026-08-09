@@ -453,7 +453,36 @@ Pomenuli smo "booking widget" (pogl. 4) i `loyalty_tier` polje (pogl. 13), bez s
 
 **Novi entiteti:** `LoyaltyPointTransaction` (guest_profile_id, type: earn|redeem|expire|adjust, amount, source_reservation_id nullable, earned_at, expires_at, hold_until, status: pending|posted|expired), `LoyaltyTier` (tier_name, qualifying_nights/stays/spend_threshold — OR logika, benefits jsonb), `LoyaltyTierAssignment` (guest_profile_id, tier_id, effective_from/to, qualifying_period), `RedemptionCatalogItem` (name, point_cost, type: voucher|upgrade|free_night|partner_reward).
 
-## 29. API reference (konsolidovano)
+## 29. Kapacitet i zauzetost — jedinstven pregled preko svih resursa
+
+Nedostajao je jedinstven pregled zauzetosti soba (ukupno, po tipu, po broju sobe) i pregled kapaciteta restorana, spa-a i kongresnih sala. **Nalaz istraživanja: industrija nema zajednički standard kroz ove domene** — Mews generalizuje samo unutar soba (`Resource`/`ResourceCategory`), Zenoti ima registar spa soba bez live-count endpointa, EventTemple ima "Spaces" samo za MICE, Robin generalizuje ali samo za corporate real estate. Nijedan vendor ne spaja sobu+sto+spa sobu+salu u jedan transakcioni model.
+
+**Odluka:** `Room`, novi `DiningTable`, `SpaResource`, `FunctionSpace` ostaju potpuno odvojeni domenski entiteti (različita poslovna pravila svaki), plus **zajednički read-model sloj samo za dashboard**, po uzoru na Mews-ovo razdvajanje "fizičko stanje" od "status zauzetosti".
+
+**Sobe — popuna ARI propusta (pogl. 4):** Mews-ov model razdvaja `AvailabilityAdjustment` (potpisan delta po tip-sobe/datumu) od `AvailabilityBlock` (alotman sa `release_strategy`: fixed/rolling/none i `status` koji određuje da li se odbija od javne raspoloživosti). **Za v1 nema nove fizičke tabele** — raspoloživost se izvodi upitom (`room` minus OOO/OOS, minus aktivne `reservation`, minus `group_block_allotment` koji nije picked_up). `group_block` se proširuje sa `release_strategy` i `release_date`. Pri skaliranju prelazi se na eksplicitan delta model — dokumentovan sledeći korak, ne gradi se preventivno.
+
+**Restoran:** OpenTable, SevenRooms i Tock **nemaju otvorenu self-serve API dokumentaciju** (za razliku od Mews/Cloudbeds) — partner-gated program, realan put je potpisano partnerstvo. Novi entiteti: `DiningOutlet` (property_id, name, outlet_type: restaurant|bar, total_seats), `DiningTable` (outlet_id, table_number, seat_capacity, status: available|occupied|reserved|blocked, current_booking_id), `DiningReservation` (outlet_id, table_id nullable, guest_profile_id nullable za walk-in, party_size, reservation_time, duration_minutes_estimate, status: booked|seated|completed|cancelled|no_show).
+
+**Spa:** Zenoti izlaže `GET /v1/centers/{center_id}/rooms` (registar sa capacity/room_category) i blockout endpoint-e, ali nema standalone "koliko je soba slobodno sada" — samo slot-search vezan za booking. Rešenje: `SpaResource` kao **lokalni read-only mirror** Zenoti registra (webhook/poll sync) plus `SpaResourceStatus` keš tabela — Zenoti ostaje sistem zapisa transakcije, mi držimo samo dovoljno za dashboard.
+
+**Kongresne sale:** EventTemple ima najbliži obrazac (`Spaces` sa "list availabilities", `Groups` = "create group from PMS"). Novi entiteti: `FunctionSpace` (property_id, name, capacity_by_setup jsonb — teatar/banket/učionica različit kapacitet), `FunctionSpaceBooking` (function_space_id, event_reference nullable → BEO/Cvent/Delphi, start_at, end_at, setup_type, buffer_before/after_minutes, status: tentative|definite|cancelled).
+
+**Jedinstveni dashboard (read-model, ne nova baza):**
+```
+ResourceOccupancySnapshot
+  resource_type   ROOM | DINING_TABLE | SPA_RESOURCE | FUNCTION_SPACE
+  resource_id, property_id, unit_code, capacity
+  status           AVAILABLE | OCCUPIED | RESERVED_HELD | TURNING_DIRTY | OUT_OF_SERVICE
+  status_since, current_booking_id, next_available_at
+
+CapacityCount(property_id, resource_type, as_of_time)
+  -> { total_units, available_count, occupied_count, reserved_count, blocked_count }
+```
+Implementacija: UNION preko 4 domenske tabele u vreme upita (stateless servis) — uvek tačno za "sada", ali za istoriju treba drugačiji mehanizam.
+
+**Vizuelni pregled kroz vreme (dan/nedelja/mesec/godina, period od-do):** standardna vizuelizacija je **tape chart** (Gantt-stil kalendar zauzetosti, obrazac kod OPERA-e i Mews Rooms Timeline-a). Za "sada i unapred" dovoljan je `CapacityCount` upit. Za istoriju preko dužeg perioda dodaje se **dnevni rollup**, generisan pri noćnom auditu (isti okidač kao `JournalEntry`, pogl. 21): `OccupancySnapshotDaily` (property_id, resource_type, resource_category, snapshot_date, total_units, occupied_units, available_units, source: night_audit|manual). Nedeljni/mesečni/godišnji prikaz je samo GROUP BY agregacija nad ovim redovima — nema posebnog mehanizma po granulaciji. Period "od...do" kombinuje `OccupancySnapshotDaily` za prošlost i `CapacityCount` projekciju za budućnost u istom upitu. Isti dnevni rollup direktno hrani occupancy%/RevPAR KPI formule iz poglavlja 21 — ista tabela, dva konzumenta.
+
+## 30. API reference (konsolidovano)
 
 Pun spisak sa statusom dostupnosti: videti artifact, poglavlje 17. Ključni javno dokumentovani API-ji za direktno modelovanje:
 - `docs.oracle.com/en/industries/hospitality/integration-platform` (OHIP)
@@ -475,12 +504,13 @@ Pun spisak sa statusom dostupnosti: videti artifact, poglavlje 17. Ključni javn
 - `actabl.com/labor-management-software/perfectlabor`, `ukg.com/products/features/time-and-attendance`, `str.com`, `m3as.com/accounting-core`, `bookingcenter.com/products/hybrid-pms`
 - `fooddocs.com`, `developer.safetyculture.com`, `trailapp.com`, `cvent.com/en/hospitality-cloud`, `greenview.sg`, `greenkey.global`, `earthcheck.org`, `greenglobe.com`
 - `resources.trustyou.com/media/trustyou-meta-review-api`, `shijigroup.com/reviewpro-reputation`, `developers.cloudbeds.com`, `docs.mews.com`, `docs.gravty.io`
+- `docs.mews.com/connector-api` (Resource/AvailabilityBlock), `developers.cloudbeds.com/reference`, `docs.zenoti.com`, `developers.eventtemple.com`
 
-## 30. Matrica modula po tipu hotela
+## 31. Matrica modula po tipu hotela
 
-Pun prikaz (27 modula × 5 tipova hotela): videti artifact, poglavlje 30.
+Pun prikaz (30 modula × 5 tipova hotela): videti artifact, poglavlje 31.
 
-## 31. Predloženi fazni plan
+## 32. Predloženi fazni plan
 
 1. **Faza 1 — jezgro:** Rezervacije, front desk, folio, housekeeping tabla, gost profil, prost magacin. Pokriva budget/boutique. Šema od starta uključuje `held` status i `external_package_id` — paketizacija (pogl. 15) ne zahteva kasniju migraciju sheme.
    - **Paralelan track, nezavisan od faza 2–5:** implementirati `/package-quotes`, `/reservations/hold`, `/confirm`, `/cancel` i TTL sweep čim postoji realan sagovornik na strani flights/transfers aplikacije.

@@ -272,6 +272,49 @@ Upisuje se u istoj transakciji kao mutacija koju prati (aplikacioni hook), odvoj
 
 Saldo bodova po gostu se **ne** čuva kao mutabilno polje — izvodi se (i keširano osvežava) iz `loyalty_point_transaction` ledger-a, isti princip kao Folio koji se izvodi iz `folio_line_item`.
 
+## 3c. Kapacitet i zauzetost (poglavlje 29 arhitekture)
+
+### Sobe — bez nove tabele
+
+Raspoloživost soba se izvodi upitom (`room` minus OOO/OOS, minus aktivne `reservation`, minus `group_block_allotment` koji nije picked_up) — nema nove fizičke tabele u v1. `group_block` dobija dva nova polja:
+
+| Polje | Tip | Napomena |
+|---|---|---|
+| `group_block.release_strategy` | text CHECK | `fixed \| rolling \| none` — Mews `AvailabilityBlock` obrazac |
+| `group_block.release_date` | date nullable | Kad se nepodignuti alotman vraća u javnu raspoloživost |
+
+### DiningOutlet / DiningTable / DiningReservation
+
+| Polje | Tip | Napomena |
+|---|---|---|
+| `dining_table.status` | text CHECK | `available \| occupied \| reserved \| blocked` |
+| `dining_reservation.table_id` | UUID FK nullable | Nullable dok se sto ne dodeli |
+| `dining_reservation.guest_profile_id` | UUID FK nullable | Nullable za walk-in bez profila |
+
+### SpaResource / SpaResourceStatus
+
+| Polje | Tip | Napomena |
+|---|---|---|
+| `spa_resource.*` | — | **Lokalni read-only mirror** Zenoti/Book4Time registra — ne sistem zapisa transakcije |
+| `spa_resource_status.current_appointment_reference` | text nullable | Eksterna referenca (Zenoti ID), ne FK — isti princip kao `external_booking_reference` kod Activity Booking-a |
+
+### FunctionSpace / FunctionSpaceBooking
+
+| Polje | Tip | Napomena |
+|---|---|---|
+| `function_space.capacity_by_setup` | jsonb | npr. `{"theater": 200, "banquet": 120, "classroom": 80}` |
+| `function_space_booking.event_reference` | text nullable | Veza ka BEO/Cvent/Delphi (pogl. 12) — eksterna referenca, ne FK |
+
+### OccupancySnapshotDaily — istorijski rollup
+
+| Polje | Tip | Napomena |
+|---|---|---|
+| `resource_type` | text CHECK | `room \| dining_table \| spa_resource \| function_space` |
+| `resource_category` | text | Generička kategorija (room_type_id ili outlet_id ili... — tekst radi jednostavnosti kroz tipove) |
+| `source` | text CHECK | `night_audit \| manual` — generiše se pri istom okidaču kao `JournalEntry` (pogl. 21) |
+
+Ovaj rollup je jedini fizički persistiran deo dashboard sloja — sve "sada/unapred" ostaje izvedeno upitom (`CapacityCount` obrazac), izbegavajući sinhronizacione probleme.
+
 ## 4. Šta namerno NIJE u ovoj šemi (v1)
 
 - Nabavka/magacin (Item, Vendor, PurchaseOrder...) — poglavlje 6 arhitekture, zasebna migracija kad krene Faza 2.
