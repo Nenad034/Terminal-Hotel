@@ -91,9 +91,11 @@ Svaka promena `occupancy_status`/`cleanliness_status` upisuje red u `room_status
 | `property_id` | UUID FK | |
 | `confirmation_number` | text unique | Čitljiv broj za gosta |
 | `primary_guest_id` | UUID FK → guest_profile | |
-| `status` | text CHECK | `booked \| confirmed \| checked_in \| checked_out \| cancelled \| no_show` |
-| `source` | text CHECK | `direct \| ota \| gds \| phone \| walk_in \| group` |
+| `status` | text CHECK | `held \| booked \| confirmed \| checked_in \| checked_out \| cancelled \| no_show \| expired` |
+| `source` | text CHECK | `direct \| ota \| gds \| phone \| walk_in \| group \| package` |
 | `channel_reference` | text nullable | ID rezervacije u OTA/GDS sistemu |
+| `hold_expires_at` | timestamptz nullable | Postavljeno samo kad je `status = held`; TTL sweep posle ovog trenutka prebacuje u `expired` |
+| `external_package_id` | text nullable | Referenca ka Package zapisu u eksternom orkestracionom servisu (pogl. 15) — ne normalizovati tuđi model |
 | `room_type_id` | UUID FK | Traženi tip (u trenutku rezervacije) |
 | `room_id` | UUID FK nullable | Dodeljena fizička soba (tek na/pre check-in) |
 | `rate_plan_id` | UUID FK | |
@@ -105,12 +107,18 @@ Svaka promena `occupancy_status`/`cleanliness_status` upisuje red u `room_status
 **State machine (`reservation.status`):**
 
 ```
-booked ──confirm──> confirmed ──check-in──> checked_in ──check-out──> checked_out
-   │                    │
-   └──cancel──> cancelled          └──(datum dolaska prošao, nije se pojavio)──> no_show
+held (TTL, hold_expires_at) ──confirm──> confirmed ──check-in──> checked_in ──check-out──> checked_out
+   │                                          │
+   ├──TTL istekao (auto sweep)──> expired     └──(datum dolaska prošao, nije se pojavio)──> no_show
+   └──cancel (kompenzacija)──> cancelled
+
+booked ──confirm──> confirmed   (direktan/OTA tok bez hold faze)
+   └──cancel──> cancelled
 ```
 
-Svaki prelaz upisuje red u `reservation_status_event` (`from_status`, `to_status`, `occurred_at`, `actor_employee_id` nullable za sistemske prelaze poput no-show-a iz noćnog audita).
+Svaki prelaz upisuje red u `reservation_status_event` (`from_status`, `to_status`, `occurred_at`, `actor_employee_id` nullable za sistemske prelaze poput no-show-a iz noćnog audita ili auto-expire iz TTL sweep-a).
+
+`held` je poseban ulazni put korišćen isključivo za **paketizaciju putovanja** (poglavlje 15 arhitekture) — kad eksterni Package orkestrator (odvojen servis koji vezuje ovaj hotel sa aplikacijom za letove/transfere) privremeno drži sobu dok sastavlja i naplaćuje ceo paket. Direktne/OTA rezervacije i dalje ulaze kroz `booked`, bez hold faze.
 
 ### GroupBlock / GroupBlockAllotment
 
@@ -128,7 +136,7 @@ Svaki prelaz upisuje red u `reservation_status_event` (`from_status`, `to_status
 |---|---|---|
 | `folio.reservation_id` | UUID FK | |
 | `folio.folio_number` | int | Redni broj folija unutar rezervacije (1, 2, 3...) — omogućava split/route |
-| `folio.owner_type` | text CHECK | `guest \| company \| group_master` |
+| `folio.owner_type` | text CHECK | `guest \| company \| group_master \| package_operator` — poslednje kad je paket već naplaćen spolja (pogl. 15), folio i dalje prati potrošnju ali se ne očekuje naplata na recepciji |
 | `folio.status` | text CHECK | `open \| closed \| voided` |
 | `folio_line_item.department` | text CHECK | `room \| fnb \| spa \| minibar \| activity \| tax \| other` |
 | `folio_line_item.source_system` | text | `pos \| pms \| spa \| minibar \| manual` — odakle je stavka stigla |
@@ -164,6 +172,14 @@ Svaki zaposleni ima **jedinstven nalog** (PCI-DSS zahtev 7/8, arhitektura pogl. 
 
 **State machine:** `open → in_progress → completed`, sa `→ cancelled` iz bilo kog stanja pre `completed`.
 
+### Paketizacija putovanja (hold/confirm/cancel ugovor)
+
+Detaljno u `architecture.md`, poglavlje 15. Sažetak polja/mehanike koja je već ugrađena u šemu iznad (`reservation.status = held`, `hold_expires_at`, `external_package_id`, `source = package`, `folio.owner_type = package_operator`):
+
+- Nezavisan **Package orkestracioni servis** (van ovog repoa) drži `held` sobu, let (preko NDC agregatora poput Duffel-a) i transfer (preko OCTO/Mozio) paralelno, sa TTL-om.
+- Hotel PMS izlaže `POST /package-quotes` (bez efekta), `POST /reservations/hold`, `POST /reservations/{id}/confirm`, `POST /reservations/{id}/cancel` (idempotentno) — Saga orkestracioni obrazac, kompenzacija u obrnutom redosledu ako bilo koja noga ne uspe.
+- Pozadinski TTL sweep automatski prebacuje `held → expired` i oslobađa inventar, bez čekanja na orkestrator.
+
 ### ActivityBooking
 
 Polja tačno prema arhitekturi (pogl. 11) — `reservation_id`, `activity_type`, `source`, `provider_ref`, `scheduled_at`, `participants`, `price`, `payment_mode`, `external_booking_reference`, `status`, `meeting_point`. Detalji u `architecture.md`.
@@ -177,3 +193,4 @@ Primenjen obrazac: svaka tabela sa `property_id` ima RLS politiku koja poredi `p
 - Nabavka/magacin (Item, Vendor, PurchaseOrder...) — poglavlje 6 arhitekture, zasebna migracija kad krene Faza 2.
 - Kanal menadžer/OTA sinhronizacija — `reservation.channel_reference` je zadržan kao kuka za to, ali sama sinhronizaciona logika je van PMS jezgra.
 - Fiskalizacija/SEF/eTurista adapteri — `folio` i `reservation` imaju dovoljno polja (guest ID dokument, iznosi) da se adapter doda bez menjanja šeme, ali sam adapter nije deo ove migracije.
+- **Sam Package orkestracioni servis** (saga state, veza ka flights/transfers aplikaciji) — namerno živi u zasebnom repou/servisu, ne u ovoj bazi. Ovde je samo ugovor (hold/confirm/cancel) i referentno polje `external_package_id`.

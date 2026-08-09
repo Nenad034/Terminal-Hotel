@@ -257,7 +257,57 @@ Bez ijedne direktne (tesno spregnute) veze između minibar adaptera i housekeepi
 
 Kafka (trajna magistrala, replay, napaja real-time servise + data lake) vs RabbitMQ (interna dispečerizacija zadataka point-to-point).
 
-## 15. Multi-tenant strategija
+## 15. Paketiranje putovanja — integracija sa aplikacijom za letove i transfere
+
+Cilj: gost kupuje hotel + let + transfer kao jedan paket, ali to su dve nezavisne aplikacije (Terminal Hotel i aplikacija za letove/transfere) sa sopstvenim bazama. Industrijski termin: **dynamic packaging** — real-time sastavljanje leta+smeštaja+prevoza u jednu kupovinu.
+
+**Ključna odluka: treći, nezavisan orkestracioni servis.** Paketizacija se ne ugrađuje ni u hotel PMS ni u flights/transfers aplikaciju — dobija sopstveni Package/Trip orkestracioni servis sa sopstvenom bazom. Isti obrazac koriste svi realni dynamic-packaging sistemi (Traveltek, Juniper Booking Engine, Expedia paket sloj). Razlozi: (1) Saga orkestracija je poseban concern koji ne pripada ni jednom od dva domenska modela; (2) otvara vrata trećem/četvrtom proizvodu kasnije (npr. aktivnosti preko OCTO-a) bez diranja postojećih aplikacija; (3) izoluje failure modove orkestratora od produkciono-kritičnih gostinskih sistema; (4) obe aplikacije ostaju prodajive samostalno.
+
+**Saga tok (orkestracioni stil, ne choreography):**
+```
+1. HOLD (paralelno):
+   Orkestrator → Hotel PMS:     hold (TTL)           → held + hold_expires_at
+   Orkestrator → Flights app:   hold order (NDC)      → order_id + payment_required_by
+   Orkestrator → Transfer app:  book (obično instant)  → booking_id
+
+2. Kombinovana cena → jedna naplata gosta
+
+3. CONFIRM (paralelno):
+   Orkestrator → Hotel PMS:     confirm(hold_id)  → confirmed
+   Orkestrator → Flights app:   pay(order_id)      → confirmed
+
+4. AKO BILO KOJA NOGA NE USPE → kompenzacija obrnutim redosledom:
+   cancel order (refund) → cancel/release hold
+```
+Let ima najkraći i najskuplji hold pa se po pravilu drži prvi. Orkestrator drži trajno stanje sage: `pending_holds → holds_confirmed → payment_captured → legs_confirmed → complete`, ili `→ compensating → compensated`. Ako TTL istekne pre potvrde, hotel/let automatski oslobađaju drženu jedinicu bez čekanja na orkestrator.
+
+**Bitna asimetrija:** hotel i let podržavaju eksplicitan hold-pa-confirm; mnogi dobavljači transfera ne — transfer je često dovoljno jeftin/fleksibilan da dobavljači odmah potvrđuju sa besplatnim otkazivanjem. Kompenzacija za transfer nogu je zato obično "cancel", ne "release hold".
+
+**API ugovor koji Hotel PMS mora izložiti** (isti oblik kao Duffel offer/hold/order i Mews state model):
+
+| Endpoint | Svrha | Efekat na Reservation |
+|---|---|---|
+| `POST /package-quotes` | Cena/raspoloživost bez efekta na inventar (kao Duffel `offers.get` / NDC OfferPrice) | — |
+| `POST /reservations/hold` | Kreira rezervaciju sa TTL-om, **stvarno umanjuje** raspoloživ inventar | status → `held`, postavlja `hold_expires_at` |
+| `POST /reservations/{id}/confirm` | Poziva orkestrator tek posle uspešne naplate i potvrde svih nogu | status → `confirmed` |
+| `POST /reservations/{id}/cancel` | Kompenzaciona akcija — mora biti idempotentna | status → `cancelled` |
+| Pozadinski TTL sweep | Auto-oslobađa `held` rezervacije posle `hold_expires_at`, bez čekanja na orkestrator | status → `expired` |
+
+**Promene u Reservation state machine:**
+```
+held (TTL) ──confirm──> confirmed ──check-in──> checked_in ──check-out──> checked_out
+   ├──TTL istekao (auto)──> expired
+   └──cancel (kompenzacija)──> cancelled
+```
+Novo polje `external_package_id` nosi referencu ka Package zapisu u orkestratoru — ne normalizovati tuđi model (isti princip kao `external_booking_reference` kod Activity Booking-a). `source` enum proširen vrednošću `package`.
+
+**Naplata:** `folio.owner_type` proširen vrednošću `package_operator` — kad paket naplaćuje orkestrator odjednom, folio i dalje prati potrošnju u hotelu (F&B, minibar) ali se ne očekuje direktna naplata na recepciji za deo pokriven paketom.
+
+**Standardi na strani leta i transfera** (za dogovor sa timom druge aplikacije):
+- **Letovi:** IATA NDC (Offer/Order model) — direktna veza na svaku avio-kompaniju nije opravdana; realan put je preko agregatora. **Duffel** (duffel.com/docs) — 300+ prevoznika, čist REST, ugrađen hold/pay-later (`expires_at`, `payment_required_by`) — najbolji referentni model za MVP. Alternativa pri većem volumenu: Amadeus Flight Create Orders, Sabre NDC OrderCreate.
+- **Transfer:** **OCTO** standard (isti kao za izlete/aktivnosti, proširen i na transfer/multi-stop). Agregator: **Mozio** (mozio.com/business-partners, 100+ dobavljača, 3500+ aerodroma) ili CarTrawler (docs.cartrawler.com).
+
+## 16. Multi-tenant strategija
 
 | Strategija | Izolacija | Trošak | Kad |
 |---|---|---|---|
@@ -267,7 +317,7 @@ Kafka (trajna magistrala, replay, napaja real-time servise + data lake) vs Rabbi
 
 Preporuka: hibrid — pool+RLS podrazumevano, dedicated schema/baza za enterprise tier. Tenant resolution na API gateway sloju, ne razbacano po servisima.
 
-## 16. Bezbednost i usklađenost
+## 17. Bezbednost i usklađenost
 
 **PCI-DSS 4.0.1:** segmentacija mreže (plaćanja izolovana od PMS/WiFi/IoT), tokenizacija (folio čuva samo token), jedinstven ID po zaposlenom. Tok: kartica → gateway (Adyen/Stripe) → token → folio.
 
@@ -280,7 +330,7 @@ Preporuka: hibrid — pool+RLS podrazumevano, dedicated schema/baza za enterpris
 
 **Pristupačnost:** WCAG 2.1 AA za booking flow; podaci o pristupačnim sobama kao strukturirana polja, ne slobodan tekst.
 
-## 17. Preporuke za tehnološki stek
+## 18. Preporuke za tehnološki stek
 
 | Sloj | Preporuka | Obrazloženje |
 |---|---|---|
@@ -293,7 +343,7 @@ Preporuka: hibrid — pool+RLS podrazumevano, dedicated schema/baza za enterpris
 | Kontrola pristupa | Sopstveni adapter po vendoru + opciono agregator | Nema univerzalnog protokola |
 | Fiskalizacija/SEF/eTurista | Pluggable compliance adapter po zemlji | Različit ritam i pravni zahtevi |
 
-## 18. API reference (konsolidovano)
+## 19. API reference (konsolidovano)
 
 Pun spisak sa statusom dostupnosti: videti artifact, poglavlje 17. Ključni javno dokumentovani API-ji za direktno modelovanje:
 - `docs.oracle.com/en/industries/hospitality/integration-platform` (OHIP)
@@ -311,14 +361,16 @@ Pun spisak sa statusom dostupnosti: videti artifact, poglavlje 17. Ključni javn
 - `docs.adyen.com`, `docs.stripe.com/terminal`
 - `efaktura.gov.rs`, `eturista.gov.rs`
 - `octo.travel`, `bokun.dev`, `developer.fareharbor.com`, `developers.rezdy.com`, `docs.ventrata.com`, `docs.viator.com/partner-api`, `code.getyourguide.com`, `klook.gitbook.io/openapi`
+- `iata.org/en/programs/airline-distribution/retailing/ndc`, `duffel.com/docs`, `developers.amadeus.com/self-service/category/flights`, `developer.sabre.com`, `mozio.com/business-partners`, `docs.cartrawler.com`
 
-## 19. Matrica modula po tipu hotela
+## 20. Matrica modula po tipu hotela
 
-Pun prikaz (20 modula × 5 tipova hotela): videti artifact, poglavlje 19.
+Pun prikaz (21 modul × 5 tipova hotela): videti artifact, poglavlje 20.
 
-## 20. Predloženi fazni plan
+## 21. Predloženi fazni plan
 
-1. **Faza 1 — jezgro:** Rezervacije, front desk, folio, housekeeping tabla, gost profil, prost magacin. Pokriva budget/boutique.
+1. **Faza 1 — jezgro:** Rezervacije, front desk, folio, housekeeping tabla, gost profil, prost magacin. Pokriva budget/boutique. Šema od starta uključuje `held` status i `external_package_id` — paketizacija (pogl. 15) ne zahteva kasniju migraciju sheme.
+   - **Paralelan track, nezavisan od faza 2–5:** implementirati `/package-quotes`, `/reservations/hold`, `/confirm`, `/cancel` i TTL sweep čim postoji realan sagovornik na strani flights/transfers aplikacije.
 2. **Faza 2 — F&B i nabavka:** POS integracija (Toast Tender obrazac), pun nabavka/magacin domen, event magistrala.
 3. **Faza 3 — pristup i IoT:** Middleware za brave (start sa Salto zbog javnog API-ja), minibar i energetski adapteri.
 4. **Faza 4 — usklađenost (RS):** Fiskalizacija, SEF e-Faktura, eTurista, PCI-DSS tokenizacija, GDPR cascade-delete.
