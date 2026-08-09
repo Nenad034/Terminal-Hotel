@@ -343,7 +343,55 @@ Preporuka: hibrid — pool+RLS podrazumevano, dedicated schema/baza za enterpris
 | Kontrola pristupa | Sopstveni adapter po vendoru + opciono agregator | Nema univerzalnog protokola |
 | Fiskalizacija/SEF/eTurista | Pluggable compliance adapter po zemlji | Različit ritam i pravni zahtevi |
 
-## 19. API reference (konsolidovano)
+## 19. Ljudski resursi i radna snaga
+
+Imamo `Employee`/`Role`, ali nedostaje raspored smena, evidencija radnog vremena, i veza sertifikacija-zaposlenog sa dodelom zadataka. Potvrđen obrazac kod realnih WFM vendora (Hotel Effectiveness/Actabl PerfectLabor™, Legion, Deputy, When I Work): **occupancy podaci iz PMS-a → forecasting engine → radni standard po ulozi/odeljenju → auto-generisan raspored → mobilna aplikacija → timesheet → payroll export.**
+
+- **Raspoređivanje:** Hotel Effectiveness/Actabl povezuje forecasting i produktivne standarde direktno sa occupancy podacima; 2026 integracija sa ProfitSword pokazuje da status sobe (housekeeping tabla) direktno menja potrebu za osobljem u realnom vremenu.
+- **Evidencija rada:** nije pronađen hotelski lock vendor koji nativno radi time&attendance, ali UKG-ovi terminali imaju potvrđen "door relay" — hardverski dokazana izvodljivost istog kredencijala za vrata i evidenciju. Tretirati kao **sopstvenu arhitektonsku odluku**: Time Clock Event servis se pretplaćuje na access-control evente (pogl. 8) umesto paralelnog hardvera.
+- **Payroll:** realan obrazac je izvoz odobrenih sati po ciklusu (ADP, UKG, Paychex), ne live API — isti adapter princip kao GL export i fiskalizacija.
+- **Sertifikacije:** Quore University i Mapal OS pokrivaju compliance treninge, ali nijedan vendor javno ne dokumentuje "istekla sertifikacija blokira dodelu smene" — realna prilika za diferencijaciju, modelovati kao flag koji Task/Shift servis proverava pri dodeli.
+
+**Novi entiteti:** `Shift` (property_id, employee_id nullable, role_id, start_at, end_at, status: open|assigned|confirmed|completed|no_show|cancelled, forecast_source), `TimeClockEvent` (employee_id, property_id, event_type: clock_in|clock_out|break_start|break_end, occurred_at, source: badge|biometric|manual|mobile, device_reference), `StaffCertification` (employee_id, certification_type, issued_at, expires_at, verified_by_employee_id, document_reference).
+
+## 20. Offline rad front deska
+
+**Nalaz istraživanja:** ni Oracle OPERA Cloud, ni Mews, ni (najverovatnije) Cloudbeds nemaju verifikovan pravi offline režim. Mews eksplicitno preporučuje zakazane "emergency reports" (satni izvoz) kao papirnu rezervu; Cloudbeds preporučuje "grab-and-go" štampane pakete; Oracle-ova dokumentacija ne pominje offline režim uopšte. Otpornost kod sve tri je **operativna, ne arhitektonska**.
+
+Jedan verifikovan arhitektonski presedan: **BookingCenter Hybrid PMS** — lokalni Desktop PMS na objektu obrađuje check-in/out/naplatu offline, sa auto-sinhronizacijom po povratku veze.
+
+| Pristup | Šta znači | Kada ima smisla |
+|---|---|---|
+| Cloud-only + operativna ublažavanja | Zakazan izvoz kritičnog stanja (dolasci, otvoreni folio) u lokalni snapshot; ručna procedura za period nedostupnosti | **v1/MVP** — isti rizik koji Oracle/Mews/Cloudbeds prihvataju danas |
+| Lokalni cache-node + eventual sync | Embedded DB na objektu za offline check-in/out/folio, sync + konflikt rezolucija po povratku | Kasnija faza, diferencijator — opravdan trošak samo za lokacije sa nepouzdanim internetom |
+
+**Preporuka za v1:** prva opcija. Druga se dokumentuje kao namerna buduća mogućnost, ne gradi se preventivno.
+
+## 21. Finansije i KPI izveštavanje
+
+**Standardne formule (USALI/HFTP):** Occupancy% = Prodate sobe ÷ Raspoložive; ADR = Prihod od soba ÷ Prodate sobe; RevPAR = ADR × Occupancy% = Prihod od soba ÷ Raspoložive sobe; TRevPAR = Ukupan prihod objekta ÷ Raspoložive sobe; GOPPAR = Bruto operativni profit ÷ Raspoložive sobe (tačna GOP definicija kroz USALI standard — proveriti priručnik za implementaciju).
+
+**STR Global (CoStar):** de facto benchmark naspram konkurentskog seta (STAR Report, 100=paritet). Potvrđen hibridni prijem podataka (API/SFTP/email/ručno) — API specifikacija nije javno verifikovana, modelovati kao pluggable export adapter (dnevni batch), ne pretpostaviti REST poziv.
+
+**GL export:** nema jedinstvenog formata kroz industriju. PMS emituje kanoničan "journal entry" event pri noćnom auditu → adapter po knjigovodstvenom sistemu (QuickBooks/Xero, Sage Intacct, **M3 Accounting Core** — 70+ potvrđenih integracija, Aptech PVNG). Isti princip kao fiskalizacija/SEF adapteri (pogl. 17).
+
+**Vlasnički izveštaji/budžetiranje:** M3 je najbogatiji referentni sistem (multi-property GL, budget/forecast, portfolio vidljivost); Actabl Transcendent za asset-management. Razlikovati revenue/rate forecasting (IDeaS/Duetto, pogl. 4) od P&L budžetiranja (M3).
+
+**Novi entitet:** `JournalEntry` (property_id, business_date, gl_account_code, debit_amount, credit_amount, department, description, source_reference nullable → folio_line_item), generisan pri noćnom auditu.
+
+## 22. Opšti audit log platforme
+
+Ko je šta menjao kad, kroz ceo sistem — bitno za SOC 2 spremnost s obzirom da platforma već nosi PCI-DSS/GDPR/fiskalizaciju.
+
+**Ne pun event sourcing** — event magistrala (pogl. 14) postoji radi integracije, ne audita. Realan, lakši obrazac (potvrđen u Microsoft/AWS arhitektonskim smernicama): normalne CRUD tabele ostaju sistem zapisa, svaka mutacija upisuje red u odvojenu, append-only `audit_event` tabelu, u istoj transakciji.
+
+**Preporučena šema:** `organization_id` (tenant izolacija, ista RLS politika), `actor_employee_id`/`actor_type` (employee|system|api_key), `action`/`resource_type`/`resource_id`, `before`/`after` (JSONB — **bez PII direktno**, samo `guest_profile.id` referenca), `prev_event_hash`/`event_hash` (hash-lanac za tamper-evidence).
+
+**GDPR sukob:** append-only log je u sukobu sa pravom na brisanje. Rešenje (Microsoft/AWS smernice za Event Sourcing): čuvati PII van audit loga, samo referencu po ID-u — isti princip kao `gdpr_deleted_at` na `guest_profile`.
+
+**SOC 2 minimum:** logovati autentikaciju, dodelu privilegija, promene konfiguracije, izvoz podataka; retencija min. 12 meseci hot + hladno skladište dalje; tamper-evidence obavezan (hash-lanac dovoljan).
+
+## 23. API reference (konsolidovano)
 
 Pun spisak sa statusom dostupnosti: videti artifact, poglavlje 17. Ključni javno dokumentovani API-ji za direktno modelovanje:
 - `docs.oracle.com/en/industries/hospitality/integration-platform` (OHIP)
@@ -362,12 +410,13 @@ Pun spisak sa statusom dostupnosti: videti artifact, poglavlje 17. Ključni javn
 - `efaktura.gov.rs`, `eturista.gov.rs`
 - `octo.travel`, `bokun.dev`, `developer.fareharbor.com`, `developers.rezdy.com`, `docs.ventrata.com`, `docs.viator.com/partner-api`, `code.getyourguide.com`, `klook.gitbook.io/openapi`
 - `iata.org/en/programs/airline-distribution/retailing/ndc`, `duffel.com/docs`, `developers.amadeus.com/self-service/category/flights`, `developer.sabre.com`, `mozio.com/business-partners`, `docs.cartrawler.com`
+- `actabl.com/labor-management-software/perfectlabor`, `ukg.com/products/features/time-and-attendance`, `str.com`, `m3as.com/accounting-core`, `bookingcenter.com/products/hybrid-pms`
 
-## 20. Matrica modula po tipu hotela
+## 24. Matrica modula po tipu hotela
 
-Pun prikaz (21 modul × 5 tipova hotela): videti artifact, poglavlje 20.
+Pun prikaz (25 modula × 5 tipova hotela): videti artifact, poglavlje 24.
 
-## 21. Predloženi fazni plan
+## 25. Predloženi fazni plan
 
 1. **Faza 1 — jezgro:** Rezervacije, front desk, folio, housekeeping tabla, gost profil, prost magacin. Pokriva budget/boutique. Šema od starta uključuje `held` status i `external_package_id` — paketizacija (pogl. 15) ne zahteva kasniju migraciju sheme.
    - **Paralelan track, nezavisan od faza 2–5:** implementirati `/package-quotes`, `/reservations/hold`, `/confirm`, `/cancel` i TTL sweep čim postoji realan sagovornik na strani flights/transfers aplikacije.

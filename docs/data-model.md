@@ -188,6 +188,42 @@ Polja tačno prema arhitekturi (pogl. 11) — `reservation_id`, `activity_type`,
 
 Primenjen obrazac: svaka tabela sa `property_id` ima RLS politiku koja poredi `property_id` sa vrednošću iz sesijske promenljive `app.current_property_id` (postavlja je aplikacija posle autentikacije). `guest_profile` koristi `organization_id` po istom principu jer je deljen kroz lanac. Konkretan primer za `reservation` i `folio` dat je u DDL-u — isti pattern (`CREATE POLICY ... USING (property_id = current_setting('app.current_property_id')::uuid)`) treba primeniti na sve preostale tabele sa `property_id` pre produkcije.
 
+## 3a. Ljudski resursi, finansije, audit (poglavlja 19–22 arhitekture)
+
+### Shift / TimeClockEvent / StaffCertification
+
+| Polje | Tip | Napomena |
+|---|---|---|
+| `shift.employee_id` | UUID FK nullable | Nullable = otvorena smena, čeka preuzimanje |
+| `shift.status` | text CHECK | `open \| assigned \| confirmed \| completed \| no_show \| cancelled` |
+| `shift.forecast_source` | text CHECK | `auto \| manual` — da li je generisano iz occupancy forecast-a |
+| `time_clock_event.event_type` | text CHECK | `clock_in \| clock_out \| break_start \| break_end` |
+| `time_clock_event.source` | text CHECK | `badge \| biometric \| manual \| mobile` — badge/biometric dele kredencijal sa access-control adapterom (pogl. 8), ne grade paralelan hardver |
+| `staff_certification.expires_at` | timestamptz nullable | Task/Shift servis proverava ovo pri dodeli — istekla sertifikacija blokira dodelu (arhitektonska odluka, ne poznat gotov proizvod) |
+
+### JournalEntry
+
+| Polje | Tip | Napomena |
+|---|---|---|
+| `journal_entry.business_date` | date | Generiše se pri noćnom auditu |
+| `journal_entry.gl_account_code` | text | |
+| `journal_entry.debit_amount`, `credit_amount` | numeric(12,2) | |
+| `journal_entry.source_reference` | UUID FK nullable → `folio_line_item.id` | Veza ka izvornoj transakciji |
+
+Ovo je interni kanoničan format — svaki knjigovodstveni sistem (QuickBooks, Sage Intacct, M3, Aptech PVNG) je zaseban adapter koji čita ovu tabelu, isti princip kao fiskalizacija/SEF adapteri.
+
+### AuditEvent
+
+| Polje | Tip | Napomena |
+|---|---|---|
+| `audit_event.organization_id` | UUID FK | Tenant izolacija, ista RLS politika kao ostatak šeme |
+| `audit_event.actor_employee_id`, `actor_type` | UUID FK nullable / text | `employee \| system \| api_key` |
+| `audit_event.action`, `resource_type`, `resource_id` | text/text/UUID | npr. `reservation.rate_changed` |
+| `audit_event.before`, `after` | jsonb | **Bez PII direktno** — samo `guest_profile.id` referenca, nikad puno ime/email u snimku (GDPR: brisanje gosta ne sme pokidati audit istoriju) |
+| `audit_event.prev_event_hash`, `event_hash` | text | Hash-lanac — čini izmenu/brisanje reda otkrivom bez posebnog WORM skladišta |
+
+Upisuje se u istoj transakciji kao mutacija koju prati (aplikacioni hook), odvojeno od event magistrale (pogl. 14) koja služi integraciji, ne auditu.
+
 ## 4. Šta namerno NIJE u ovoj šemi (v1)
 
 - Nabavka/magacin (Item, Vendor, PurchaseOrder...) — poglavlje 6 arhitekture, zasebna migracija kad krene Faza 2.
