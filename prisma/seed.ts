@@ -59,31 +59,34 @@ async function main() {
     },
   });
 
+  const frontDeskPermissions = [
+    'reservations:manage',
+    'guests:manage',
+    'folios:manage',
+    'rooms:manage',
+    'rates:manage',
+    'tasks:manage',
+  ];
   const frontDeskRole = await prisma.role.upsert({
     where: { id: '00000000-0000-0000-0000-000000000102' },
-    update: {},
+    update: { permissions: frontDeskPermissions },
     create: {
       id: '00000000-0000-0000-0000-000000000102',
       propertyId: property.id,
       name: 'Front Desk Agent',
-      permissions: [
-        'reservations:manage',
-        'guests:manage',
-        'folios:manage',
-        'rooms:manage',
-        'rates:manage',
-      ],
+      permissions: frontDeskPermissions,
     },
   });
 
+  const housekeepingPermissions = ['rooms:manage', 'tasks:manage'];
   const housekeepingRole = await prisma.role.upsert({
     where: { id: '00000000-0000-0000-0000-000000000103' },
-    update: {},
+    update: { permissions: housekeepingPermissions },
     create: {
       id: '00000000-0000-0000-0000-000000000103',
       propertyId: property.id,
       name: 'Housekeeping',
-      permissions: ['rooms:manage'],
+      permissions: housekeepingPermissions,
     },
   });
 

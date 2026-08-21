@@ -140,6 +140,21 @@ export class RoomsService {
         },
       });
 
+      // Housekeeping → CMMS lanac (pogl. 7): kvar prijavljen (outOfOrder
+      // false→true) automatski otvara radni nalog održavanja.
+      if (dto.outOfOrder === true && !room.outOfOrder) {
+        await tx.task.create({
+          data: {
+            propertyId,
+            roomId,
+            taskType: 'maintenance',
+            priority: 'high',
+            title: `Kvar prijavljen — soba ${room.roomNumber}`,
+            assignedTo: dto.changedBy ?? undefined,
+          },
+        });
+      }
+
       return updatedRoom;
     });
 
