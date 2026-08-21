@@ -1,0 +1,915 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// ORGANIZATION / PROPERTY
+// ============================================================
+
+model Organization {
+  id         String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name       String
+  createdAt  DateTime   @default(now()) @map("created_at") @db.Timestamptz
+
+  properties        Property[]
+  guestProfiles     GuestProfile[]
+  corporateAccounts CorporateAccount[]
+  auditEvents       AuditEvent[]
+
+  @@map("organization")
+}
+
+model Property {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  name           String
+  timezone       String   @default("Europe/Belgrade")
+  currency       String   @default("RSD") @db.Char(3)
+  address        Json     @default("{}")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  organization         Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  roomTypes            RoomType[]
+  rooms                Room[]
+  rateGroups           RateGroup[]
+  ratePlans            RatePlan[]
+  employees            Employee[]
+  groupBlocks          GroupBlock[]
+  reservations         Reservation[]
+  tasks                Task[]
+  shifts               Shift[]
+  timeClockEvents      TimeClockEvent[]
+  journalEntries       JournalEntry[]
+  auditEvents          AuditEvent[]
+  correctiveActions    CorrectiveAction[]
+  haccpLogs            HaccpCcpLog[]
+  incidentReports      IncidentReport[]
+  esgMetrics           EsgMetric[]
+  certifications       Certification[]
+  diningOutlets        DiningOutlet[]
+  spaResources         SpaResource[]
+  functionSpaces       FunctionSpace[]
+  occupancySnapshots   OccupancySnapshotDaily[]
+
+  @@index([organizationId], name: "idx_property_org")
+  @@map("property")
+}
+
+// ============================================================
+// ROOM TYPE / ROOM
+// ============================================================
+
+model RoomType {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  propertyId     String   @map("property_id") @db.Uuid
+  code           String
+  name           String
+  description    String?
+  baseOccupancy  Int      @default(2) @map("base_occupancy")
+  maxOccupancy   Int      @default(2) @map("max_occupancy")
+  accessible     Boolean  @default(false)
+  amenities      Json     @default("[]")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  property      Property      @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  rooms         Room[]
+  rates         Rate[]
+  groupAllots   GroupBlockAllotment[]
+  reservations  Reservation[]
+
+  @@unique([propertyId, code])
+  @@map("room_type")
+}
+
+enum OccupancyStatus {
+  vacant
+  occupied
+
+  @@map("occupancy_status_enum")
+}
+
+enum CleanlinessStatus {
+  dirty
+  clean
+  inspected
+  pickup
+
+  @@map("cleanliness_status_enum")
+}
+
+model Room {
+  id                 String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  propertyId         String            @map("property_id") @db.Uuid
+  roomTypeId         String            @map("room_type_id") @db.Uuid
+  roomNumber         String            @map("room_number")
+  floor              String?
+  occupancyStatus    String            @default("vacant") @map("occupancy_status")
+  cleanlinessStatus  String            @default("clean") @map("cleanliness_status")
+  outOfOrder         Boolean           @default(false) @map("out_of_order")
+  outOfService       Boolean           @default(false) @map("out_of_service")
+  createdAt          DateTime          @default(now()) @map("created_at") @db.Timestamptz
+
+  property          Property            @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  roomType          RoomType            @relation(fields: [roomTypeId], references: [id])
+  statusEvents      RoomStatusEvent[]
+  reservations      Reservation[]
+  tasks             Task[]
+
+  @@unique([propertyId, roomNumber])
+  @@index([propertyId], name: "idx_room_property")
+  @@index([roomTypeId], name: "idx_room_type")
+  @@map("room")
+}
+
+model RoomStatusEvent {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  roomId             String   @map("room_id") @db.Uuid
+  occupancyStatus    String   @map("occupancy_status")
+  cleanlinessStatus  String   @map("cleanliness_status")
+  changedBy          String?  @map("changed_by") @db.Uuid
+  occurredAt         DateTime @default(now()) @map("occurred_at") @db.Timestamptz
+
+  room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@index([roomId, occurredAt], name: "idx_room_status_event_room")
+  @@map("room_status_event")
+}
+
+// ============================================================
+// RATE GROUP / RATE PLAN / RATE (price calendar)
+// ============================================================
+
+model RateGroup {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  propertyId String   @map("property_id") @db.Uuid
+  name       String
+
+  property  Property   @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  ratePlans RatePlan[]
+
+  @@map("rate_group")
+}
+
+model RatePlan {
+  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  propertyId           String   @map("property_id") @db.Uuid
+  rateGroupId          String?  @map("rate_group_id") @db.Uuid
+  corporateAccountId   String?  @map("corporate_account_id") @db.Uuid
+  code                 String
+  name                 String
+  description          String?
+  isPublic             Boolean  @default(true) @map("is_public")
+  cancellationPolicy   Json     @default("{}") @map("cancellation_policy")
+  minLos               Int?     @map("min_los")
+  maxLos               Int?     @map("max_los")
+  closedToArrival      Boolean  @default(false) @map("closed_to_arrival")
+  closedToDeparture    Boolean  @default(false) @map("closed_to_departure")
+  lastRoomAvailability Boolean  @default(false) @map("last_room_availability")
+  currency             String   @default("RSD") @db.Char(3)
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  property         Property          @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  rateGroup        RateGroup?        @relation(fields: [rateGroupId], references: [id])
+  corporateAccount CorporateAccount? @relation(fields: [corporateAccountId], references: [id])
+  rates            Rate[]
+  reservations     Reservation[]
+
+  @@unique([propertyId, code])
+  @@index([corporateAccountId], name: "idx_rate_plan_corporate")
+  @@map("rate_plan")
+}
+
+model Rate {
+  id                       String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ratePlanId               String   @map("rate_plan_id") @db.Uuid
+  roomTypeId               String   @map("room_type_id") @db.Uuid
+  stayDate                 DateTime @map("stay_date") @db.Date
+  price                    Decimal  @db.Decimal(12, 2)
+  minLosOverride           Int?     @map("min_los_override")
+  closedToArrivalOverride  Boolean? @map("closed_to_arrival_override")
+  updatedAt                DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  ratePlan RatePlan @relation(fields: [ratePlanId], references: [id], onDelete: Cascade)
+  roomType RoomType @relation(fields: [roomTypeId], references: [id], onDelete: Cascade)
+
+  @@unique([ratePlanId, roomTypeId, stayDate])
+  @@index([ratePlanId, stayDate], name: "idx_rate_plan_date")
+  @@index([roomTypeId, stayDate], name: "idx_rate_room_type_date")
+  @@map("rate")
+}
+
+// ============================================================
+// GUEST PROFILE / CRM
+// ============================================================
+
+model GuestProfile {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId      String    @map("organization_id") @db.Uuid
+  firstName           String    @map("first_name")
+  lastName            String    @map("last_name")
+  email               String?
+  phone               String?
+  idDocumentType      String?   @map("id_document_type")
+  idDocumentNumber    String?   @map("id_document_number")
+  nationality         String?
+  preferences         Json      @default("{}")
+  marketingConsent    Boolean   @default(false) @map("marketing_consent")
+  consentRecordedAt   DateTime? @map("consent_recorded_at") @db.Timestamptz
+  gdprDeletedAt       DateTime? @map("gdpr_deleted_at") @db.Timestamptz
+  loyaltyTier         String?   @map("loyalty_tier")
+  loyaltyNumber       String?   @map("loyalty_number")
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt           DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  organization          Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  reservations          Reservation[]
+  activityBookings      ActivityBooking[]
+  loyaltyTransactions   LoyaltyPointTransaction[]
+  loyaltyTierAssignment LoyaltyTierAssignment[]
+  incidentReports       IncidentReport[]
+  diningReservations    DiningReservation[]
+
+  @@index([organizationId, email], name: "idx_guest_org_email")
+  @@index([organizationId, loyaltyNumber], name: "idx_guest_loyalty")
+  @@map("guest_profile")
+}
+
+// ============================================================
+// EMPLOYEE / ROLE
+// ============================================================
+
+model Role {
+  id         String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  propertyId String @map("property_id") @db.Uuid
+  name       String
+  permissions Json  @default("[]")
+
+  employees Employee[]
+  shifts    Shift[]
+
+  @@map("role")
+}
+
+model Employee {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  propertyId String   @map("property_id") @db.Uuid
+  roleId     String   @map("role_id") @db.Uuid
+  firstName  String   @map("first_name")
+  lastName   String   @map("last_name")
+  email      String
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  property             Property              @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  role                 Role                  @relation(fields: [roleId], references: [id])
+  shifts               Shift[]
+  timeClockEvents      TimeClockEvent[]
+  certifications       StaffCertification[]
+  tasks                Task[]
+  incidentsReported    IncidentReport[]      @relation("ReportedBy")
+  incidentsInvolved    IncidentReport[]      @relation("InvolvedEmployee")
+  correctiveActions    CorrectiveAction[]
+  haccpLogs            HaccpCcpLog[]
+
+  @@index([propertyId], name: "idx_employee_property")
+  @@map("employee")
+}
+
+// ============================================================
+// GROUP BLOCK / ALLOTMENT
+// ============================================================
+
+model GroupBlock {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  propertyId       String    @map("property_id") @db.Uuid
+  name             String
+  status           String    @default("tentative")
+  checkIn          DateTime  @map("check_in") @db.Date
+  checkOut         DateTime  @map("check_out") @db.Date
+  releaseStrategy  String    @default("none") @map("release_strategy")
+  releaseDate      DateTime? @map("release_date") @db.Date
+  masterFolioId    String?   @map("master_folio_id") @db.Uuid
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  property    Property              @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  allotments  GroupBlockAllotment[]
+
+  @@map("group_block")
+}
+
+model GroupBlockAllotment {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  groupBlockId String   @map("group_block_id") @db.Uuid
+  roomTypeId   String   @map("room_type_id") @db.Uuid
+  stayDate     DateTime @map("stay_date") @db.Date
+  totalRooms   Int      @map("total_rooms")
+  pickedUp     Int      @default(0) @map("picked_up")
+
+  groupBlock GroupBlock @relation(fields: [groupBlockId], references: [id], onDelete: Cascade)
+  roomType   RoomType   @relation(fields: [roomTypeId], references: [id])
+
+  @@unique([groupBlockId, roomTypeId, stayDate])
+  @@map("group_block_allotment")
+}
+
+// ============================================================
+// RESERVATION
+// ============================================================
+
+model Reservation {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  propertyId         String    @map("property_id") @db.Uuid
+  confirmationNumber String    @unique @map("confirmation_number")
+  primaryGuestId     String    @map("primary_guest_id") @db.Uuid
+  status             String    @default("booked")
+  source             String    @default("direct")
+  channelReference   String?   @map("channel_reference")
+  holdExpiresAt      DateTime? @map("hold_expires_at") @db.Timestamptz
+  externalPackageId  String?   @map("external_package_id")
+  roomTypeId         String    @map("room_type_id") @db.Uuid
+  roomId             String?   @map("room_id") @db.Uuid
+  ratePlanId         String?   @map("rate_plan_id") @db.Uuid
+  checkIn            DateTime  @map("check_in") @db.Date
+  checkOut           DateTime  @map("check_out") @db.Date
+  adults             Int       @default(1)
+  children           Int       @default(0)
+  specialRequests    String?   @map("special_requests")
+  groupBlockId       String?   @map("group_block_id") @db.Uuid
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt          DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  property       Property                  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  primaryGuest   GuestProfile              @relation(fields: [primaryGuestId], references: [id])
+  roomType       RoomType                  @relation(fields: [roomTypeId], references: [id])
+  room           Room?                     @relation(fields: [roomId], references: [id])
+  ratePlan       RatePlan?                 @relation(fields: [ratePlanId], references: [id])
+  statusEvents   ReservationStatusEvent[]
+  folios         Folio[]
+  activityBookings ActivityBooking[]
+  loyaltyTxns    LoyaltyPointTransaction[]
+
+  @@index([propertyId, checkIn, checkOut], name: "idx_reservation_dates")
+  @@index([propertyId, status], name: "idx_reservation_status")
+  @@index([externalPackageId], name: "idx_reservation_external_package")
+  @@index([primaryGuestId], name: "idx_reservation_guest")
+  @@map("reservation")
+}
+
+model ReservationStatusEvent {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  reservationId    String   @map("reservation_id") @db.Uuid
+  fromStatus       String   @map("from_status")
+  toStatus         String   @map("to_status")
+  actorEmployeeId  String?  @map("actor_employee_id") @db.Uuid
+  actorType        String   @default("employee") @map("actor_type")
+  note             String?
+  occurredAt       DateTime @default(now()) @map("occurred_at") @db.Timestamptz
+
+  reservation Reservation @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+
+  @@index([reservationId, occurredAt], name: "idx_res_status_event")
+  @@map("reservation_status_event")
+}
+
+// ============================================================
+// FOLIO & BILLING
+// ============================================================
+
+model Folio {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  propertyId     String   @map("property_id") @db.Uuid
+  reservationId  String?  @map("reservation_id") @db.Uuid
+  ownerType      String   @default("guest") @map("owner_type")
+  ownerGuestId   String?  @map("owner_guest_id") @db.Uuid
+  ownerCompany   String?  @map("owner_company")
+  status         String   @default("open")
+  currency       String   @default("RSD") @db.Char(3)
+  closedAt       DateTime? @map("closed_at") @db.Timestamptz
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  reservation  Reservation?    @relation(fields: [reservationId], references: [id])
+  lineItems    FolioLineItem[]
+  payments     Payment[]
+
+  @@index([reservationId], name: "idx_folio_reservation")
+  @@map("folio")
+}
+
+model FolioLineItem {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  folioId         String   @map("folio_id") @db.Uuid
+  chargeDate      DateTime @map("charge_date") @db.Date
+  description     String
+  revenueCategory String   @map("revenue_category")
+  quantity        Decimal  @default(1) @db.Decimal(10, 3)
+  unitPrice       Decimal  @map("unit_price") @db.Decimal(12, 2)
+  totalAmount     Decimal  @map("total_amount") @db.Decimal(12, 2)
+  taxAmount       Decimal  @default(0) @map("tax_amount") @db.Decimal(12, 2)
+  taxRate         Decimal  @default(0) @map("tax_rate") @db.Decimal(5, 4)
+  voidedAt        DateTime? @map("voided_at") @db.Timestamptz
+  postedBy        String?  @map("posted_by") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  folio          Folio          @relation(fields: [folioId], references: [id], onDelete: Cascade)
+  journalEntries JournalEntry[]
+
+  @@index([folioId, chargeDate], name: "idx_folio_line_item_folio")
+  @@map("folio_line_item")
+}
+
+model Payment {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  folioId         String   @map("folio_id") @db.Uuid
+  amount          Decimal  @db.Decimal(12, 2)
+  currency        String   @default("RSD") @db.Char(3)
+  method          String
+  paymentToken    String?  @map("payment_token")
+  reference       String?
+  status          String   @default("captured")
+  postedBy        String?  @map("posted_by") @db.Uuid
+  occurredAt      DateTime @default(now()) @map("occurred_at") @db.Timestamptz
+
+  folio Folio @relation(fields: [folioId], references: [id], onDelete: Cascade)
+
+  @@index([folioId], name: "idx_payment_folio")
+  @@map("payment")
+}
+
+// ============================================================
+// TASK (housekeeping / maintenance / guest request)
+// ============================================================
+
+model Task {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  propertyId     String    @map("property_id") @db.Uuid
+  roomId         String?   @map("room_id") @db.Uuid
+  reservationId  String?   @map("reservation_id") @db.Uuid
+  taskType       String    @map("task_type")
+  priority       String    @default("normal")
+  status         String    @default("open")
+  title          String
+  description    String?
+  assignedTo     String?   @map("assigned_to") @db.Uuid
+  dueAt          DateTime? @map("due_at") @db.Timestamptz
+  completedAt    DateTime? @map("completed_at") @db.Timestamptz
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  property  Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  room      Room?     @relation(fields: [roomId], references: [id])
+  assignee  Employee? @relation(fields: [assignedTo], references: [id])
+
+  @@index([propertyId, status], name: "idx_task_property_status")
+  @@index([roomId], name: "idx_task_room")
+  @@map("task")
+}
+
+// ============================================================
+// ACTIVITY BOOKING (excursions, tours, external events)
+// ============================================================
+
+model ActivityBooking {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  reservationId   String   @map("reservation_id") @db.Uuid
+  guestProfileId  String   @map("guest_profile_id") @db.Uuid
+  activityName    String   @map("activity_name")
+  provider        String?
+  externalRef     String?  @map("external_ref")
+  scheduledAt     DateTime @map("scheduled_at") @db.Timestamptz
+  paxCount        Int      @default(1) @map("pax_count")
+  totalPrice      Decimal  @db.Decimal(12, 2)
+  currency        String   @default("RSD") @db.Char(3)
+  status          String   @default("booked")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  reservation  Reservation  @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  guestProfile GuestProfile @relation(fields: [guestProfileId], references: [id])
+
+  @@map("activity_booking")
+}
+
+// ============================================================
+// HR — SHIFT / TIME CLOCK / CERTIFICATIONS
+// ============================================================
+
+model Shift {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  propertyId     String   @map("property_id") @db.Uuid
+  employeeId     String?  @map("employee_id") @db.Uuid
+  roleId         String   @map("role_id") @db.Uuid
+  startAt        DateTime @map("start_at") @db.Timestamptz
+  endAt          DateTime @map("end_at") @db.Timestamptz
+  status         String   @default("open")
+  forecastSource String   @default("manual") @map("forecast_source")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  property Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  employee Employee? @relation(fields: [employeeId], references: [id])
+  role     Role      @relation(fields: [roleId], references: [id])
+
+  @@index([propertyId, startAt, endAt], name: "idx_shift_property_dates")
+  @@map("shift")
+}
+
+model TimeClockEvent {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employeeId      String   @map("employee_id") @db.Uuid
+  propertyId      String   @map("property_id") @db.Uuid
+  eventType       String   @map("event_type")
+  source          String   @default("manual")
+  deviceReference String?  @map("device_reference")
+  occurredAt      DateTime @default(now()) @map("occurred_at") @db.Timestamptz
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId, occurredAt], name: "idx_time_clock_employee")
+  @@map("time_clock_event")
+}
+
+model StaffCertification {
+  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employeeId            String    @map("employee_id") @db.Uuid
+  certificationType     String    @map("certification_type")
+  issuedAt              DateTime  @map("issued_at") @db.Date
+  expiresAt             DateTime? @map("expires_at") @db.Date
+  verifiedByEmployeeId  String?   @map("verified_by_employee_id") @db.Uuid
+  documentReference     String?   @map("document_reference")
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId], name: "idx_staff_cert_employee")
+  @@map("staff_certification")
+}
+
+// ============================================================
+// FINANCE — JOURNAL ENTRY / AUDIT EVENT
+// ============================================================
+
+model JournalEntry {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  propertyId      String    @map("property_id") @db.Uuid
+  businessDate    DateTime  @map("business_date") @db.Date
+  glAccountCode   String    @map("gl_account_code")
+  debitAmount     Decimal   @default(0) @map("debit_amount") @db.Decimal(12, 2)
+  creditAmount    Decimal   @default(0) @map("credit_amount") @db.Decimal(12, 2)
+  department      String?
+  description     String
+  sourceReference String?   @map("source_reference") @db.Uuid
+  exportedAt      DateTime? @map("exported_at") @db.Timestamptz
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  property      Property       @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  sourceItem    FolioLineItem? @relation(fields: [sourceReference], references: [id])
+
+  @@index([propertyId, businessDate], name: "idx_journal_entry_property_date")
+  @@map("journal_entry")
+}
+
+model AuditEvent {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId   String   @map("organization_id") @db.Uuid
+  propertyId       String?  @map("property_id") @db.Uuid
+  actorEmployeeId  String?  @map("actor_employee_id") @db.Uuid
+  actorType        String   @default("employee") @map("actor_type")
+  action           String
+  resourceType     String   @map("resource_type")
+  resourceId       String?  @map("resource_id") @db.Uuid
+  beforeState      Json?    @map("before_state")
+  afterState       Json?    @map("after_state")
+  metadata         Json     @default("{}") @map("metadata")
+  prevEventHash    String?  @map("prev_event_hash")
+  eventHash        String?  @map("event_hash")
+  occurredAt       DateTime @default(now()) @map("occurred_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  property     Property?    @relation(fields: [propertyId], references: [id])
+
+  @@index([organizationId, occurredAt(sort: Desc)], name: "idx_audit_event_org_time")
+  @@index([resourceType, resourceId], name: "idx_audit_event_resource")
+  @@map("audit_event")
+}
+
+// ============================================================
+// COMPLIANCE — HACCP / INCIDENTS / CORRECTIVE ACTIONS
+// ============================================================
+
+model CorrectiveAction {
+  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  propertyId            String    @map("property_id") @db.Uuid
+  actionTaken           String    @map("action_taken")
+  resolvedByEmployeeId  String?   @map("resolved_by_employee_id") @db.Uuid
+  resolvedAt            DateTime? @map("resolved_at") @db.Timestamptz
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  property         Property         @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  resolvedBy       Employee?        @relation(fields: [resolvedByEmployeeId], references: [id])
+  haccpLogs        HaccpCcpLog[]
+  incidentReports  IncidentReport[]
+
+  @@map("corrective_action")
+}
+
+model HaccpCcpLog {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  propertyId         String   @map("property_id") @db.Uuid
+  ccpType            String   @map("ccp_type")
+  locationReference  String?  @map("location_reference")
+  readingValue       Decimal  @map("reading_value") @db.Decimal(10, 2)
+  unit               String   @default("C")
+  thresholdMin       Decimal? @map("threshold_min") @db.Decimal(10, 2)
+  thresholdMax       Decimal? @map("threshold_max") @db.Decimal(10, 2)
+  passFail           Boolean  @map("pass_fail")
+  staffEmployeeId    String?  @map("staff_employee_id") @db.Uuid
+  correctiveActionId String?  @map("corrective_action_id") @db.Uuid
+  occurredAt         DateTime @default(now()) @map("occurred_at") @db.Timestamptz
+
+  property         Property          @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  staffEmployee    Employee?         @relation(fields: [staffEmployeeId], references: [id])
+  correctiveAction CorrectiveAction? @relation(fields: [correctiveActionId], references: [id])
+
+  @@index([propertyId, occurredAt], name: "idx_haccp_log_property_time")
+  @@map("haccp_ccp_log")
+}
+
+model IncidentReport {
+  id                       String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  propertyId               String    @map("property_id") @db.Uuid
+  incidentType             String    @map("incident_type")
+  occurredAt               DateTime  @default(now()) @map("occurred_at") @db.Timestamptz
+  location                 String?
+  involvedGuestId          String?   @map("involved_guest_id") @db.Uuid
+  involvedEmployeeId       String?   @map("involved_employee_id") @db.Uuid
+  description              String
+  severity                 String    @default("low")
+  evidenceRefs             Json      @default("[]") @map("evidence_refs")
+  rootCause                String?   @map("root_cause")
+  status                   String    @default("open")
+  reportedByEmployeeId     String?   @map("reported_by_employee_id") @db.Uuid
+  insuranceClaimReference  String?   @map("insurance_claim_reference")
+  correctiveActionId       String?   @map("corrective_action_id") @db.Uuid
+  createdAt                DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  property         Property          @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  involvedGuest    GuestProfile?     @relation(fields: [involvedGuestId], references: [id])
+  involvedEmployee Employee?         @relation("InvolvedEmployee", fields: [involvedEmployeeId], references: [id])
+  reportedBy       Employee?         @relation("ReportedBy", fields: [reportedByEmployeeId], references: [id])
+  correctiveAction CorrectiveAction? @relation(fields: [correctiveActionId], references: [id])
+
+  @@index([propertyId, occurredAt], name: "idx_incident_property_time")
+  @@map("incident_report")
+}
+
+// ============================================================
+// CORPORATE ACCOUNTS / ESG / CERTIFICATIONS
+// ============================================================
+
+model CorporateAccount {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  companyName    String    @map("company_name")
+  contractStart  DateTime? @map("contract_start") @db.Date
+  contractEnd    DateTime? @map("contract_end") @db.Date
+  accessCode     String    @unique @map("access_code")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  ratePlans    RatePlan[]
+
+  @@map("corporate_account")
+}
+
+model EsgMetric {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  propertyId  String   @map("property_id") @db.Uuid
+  metricType  String   @map("metric_type")
+  periodStart DateTime @map("period_start") @db.Date
+  periodEnd   DateTime @map("period_end") @db.Date
+  value       Decimal  @db.Decimal(15, 4)
+  unit        String
+  source      String   @default("manual")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@map("esg_metric")
+}
+
+model Certification {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  propertyId String    @map("property_id") @db.Uuid
+  program    String
+  status     String    @default("active")
+  auditDate  DateTime? @map("audit_date") @db.Date
+  expiryDate DateTime? @map("expiry_date") @db.Date
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@map("certification")
+}
+
+// ============================================================
+// LOYALTY — POINTS LEDGER / TIERS
+// ============================================================
+
+model LoyaltyPointTransaction {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  guestProfileId    String    @map("guest_profile_id") @db.Uuid
+  transactionType   String    @map("transaction_type")
+  amount            Int
+  sourceReservationId String? @map("source_reservation_id") @db.Uuid
+  earnedAt          DateTime  @default(now()) @map("earned_at") @db.Timestamptz
+  expiresAt         DateTime? @map("expires_at") @db.Timestamptz
+  holdUntil         DateTime? @map("hold_until") @db.Timestamptz
+  status            String    @default("posted")
+  description       String?
+
+  guestProfile      GuestProfile  @relation(fields: [guestProfileId], references: [id], onDelete: Cascade)
+  sourceReservation Reservation?  @relation(fields: [sourceReservationId], references: [id])
+
+  @@index([guestProfileId, earnedAt], name: "idx_loyalty_txn_guest")
+  @@map("loyalty_point_transaction")
+}
+
+model LoyaltyTier {
+  id                 String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tierName           String  @unique @map("tier_name")
+  qualifyingNights   Int?    @map("qualifying_nights")
+  qualifyingStays    Int?    @map("qualifying_stays")
+  qualifyingSpend    Decimal? @map("qualifying_spend") @db.Decimal(12, 2)
+  benefits           Json    @default("{}")
+
+  assignments LoyaltyTierAssignment[]
+
+  @@map("loyalty_tier")
+}
+
+model LoyaltyTierAssignment {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  guestProfileId  String    @map("guest_profile_id") @db.Uuid
+  tierId          String    @map("tier_id") @db.Uuid
+  effectiveFrom   DateTime  @map("effective_from") @db.Date
+  effectiveTo     DateTime? @map("effective_to") @db.Date
+  qualifyingPeriod String?  @map("qualifying_period")
+
+  guestProfile GuestProfile @relation(fields: [guestProfileId], references: [id], onDelete: Cascade)
+  tier         LoyaltyTier  @relation(fields: [tierId], references: [id])
+
+  @@map("loyalty_tier_assignment")
+}
+
+// ============================================================
+// CAPACITY & OCCUPANCY — Dining / Spa / Function Space
+// ============================================================
+
+model DiningOutlet {
+  id          String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  propertyId  String @map("property_id") @db.Uuid
+  name        String
+  outletType  String @default("restaurant") @map("outlet_type")
+  totalSeats  Int    @default(0) @map("total_seats")
+
+  property     Property           @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  tables       DiningTable[]
+  reservations DiningReservation[]
+
+  @@map("dining_outlet")
+}
+
+model DiningTable {
+  id               String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  outletId         String  @map("outlet_id") @db.Uuid
+  tableNumber      String  @map("table_number")
+  seatCapacity     Int     @default(2) @map("seat_capacity")
+  status           String  @default("available")
+  currentBookingId String? @map("current_booking_id") @db.Uuid
+
+  outlet          DiningOutlet       @relation(fields: [outletId], references: [id], onDelete: Cascade)
+  currentBooking  DiningReservation? @relation("CurrentBooking", fields: [currentBookingId], references: [id])
+  reservations    DiningReservation[] @relation("TableReservations")
+
+  @@unique([outletId, tableNumber])
+  @@map("dining_table")
+}
+
+model DiningReservation {
+  id                      String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  outletId                String    @map("outlet_id") @db.Uuid
+  tableId                 String?   @map("table_id") @db.Uuid
+  guestProfileId          String?   @map("guest_profile_id") @db.Uuid
+  partySize               Int       @default(2) @map("party_size")
+  reservationTime         DateTime  @map("reservation_time") @db.Timestamptz
+  durationMinutesEstimate Int       @default(90) @map("duration_minutes_estimate")
+  status                  String    @default("booked")
+  createdAt               DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  outlet       DiningOutlet  @relation(fields: [outletId], references: [id], onDelete: Cascade)
+  table        DiningTable?  @relation("TableReservations", fields: [tableId], references: [id])
+  guestProfile GuestProfile? @relation(fields: [guestProfileId], references: [id])
+  currentForTable DiningTable[] @relation("CurrentBooking")
+
+  @@index([outletId, reservationTime], name: "idx_dining_res_outlet_time")
+  @@map("dining_reservation")
+}
+
+model SpaResource {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  propertyId        String    @map("property_id") @db.Uuid
+  externalRef       String?   @map("external_ref")
+  name              String
+  capacity          Int       @default(1)
+  canExceedCapacity Boolean   @default(false) @map("can_exceed_capacity")
+  roomCategory      String?   @map("room_category")
+  lastSyncedAt      DateTime? @map("last_synced_at") @db.Timestamptz
+
+  property  Property         @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  status    SpaResourceStatus?
+  blockouts SpaResourceBlockout[]
+
+  @@map("spa_resource")
+}
+
+model SpaResourceStatus {
+  spaResourceId              String   @id @map("spa_resource_id") @db.Uuid
+  status                     String   @default("available")
+  statusSince                DateTime @default(now()) @map("status_since") @db.Timestamptz
+  currentAppointmentReference String? @map("current_appointment_reference")
+
+  spaResource SpaResource @relation(fields: [spaResourceId], references: [id], onDelete: Cascade)
+
+  @@map("spa_resource_status")
+}
+
+model SpaResourceBlockout {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  spaResourceId String   @map("spa_resource_id") @db.Uuid
+  startAt       DateTime @map("start_at") @db.Timestamptz
+  endAt         DateTime @map("end_at") @db.Timestamptz
+  reason        String?
+
+  spaResource SpaResource @relation(fields: [spaResourceId], references: [id], onDelete: Cascade)
+
+  @@index([spaResourceId, startAt], name: "idx_spa_blockout_resource")
+  @@map("spa_resource_blockout")
+}
+
+model FunctionSpace {
+  id               String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  propertyId       String @map("property_id") @db.Uuid
+  name             String
+  capacityBySetup  Json   @default("{}") @map("capacity_by_setup")
+
+  property Property                @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  bookings FunctionSpaceBooking[]
+
+  @@map("function_space")
+}
+
+model FunctionSpaceBooking {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  functionSpaceId  String    @map("function_space_id") @db.Uuid
+  eventReference   String?   @map("event_reference")
+  startAt          DateTime  @map("start_at") @db.Timestamptz
+  endAt            DateTime  @map("end_at") @db.Timestamptz
+  setupType        String?   @map("setup_type")
+  bufferBeforeMin  Int       @default(0) @map("buffer_before_minutes")
+  bufferAfterMin   Int       @default(0) @map("buffer_after_minutes")
+  status           String    @default("tentative")
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  functionSpace FunctionSpace @relation(fields: [functionSpaceId], references: [id], onDelete: Cascade)
+
+  @@index([functionSpaceId, startAt], name: "idx_fn_space_booking_time")
+  @@map("function_space_booking")
+}
+
+// ============================================================
+// OCCUPANCY SNAPSHOT (Night Audit rollup)
+// ============================================================
+
+model OccupancySnapshotDaily {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  propertyId       String   @map("property_id") @db.Uuid
+  resourceType     String   @map("resource_type")
+  resourceCategory String?  @map("resource_category")
+  snapshotDate     DateTime @map("snapshot_date") @db.Date
+  totalUnits       Int      @map("total_units")
+  occupiedUnits    Int      @map("occupied_units")
+  availableUnits   Int      @map("available_units")
+  source           String   @default("night_audit")
+
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@unique([propertyId, resourceType, resourceCategory, snapshotDate])
+  @@index([propertyId, snapshotDate], name: "idx_occupancy_snapshot_date")
+  @@map("occupancy_snapshot_daily")
+}
