@@ -153,4 +153,13 @@ export class AvailabilityQueryDto {
   @IsInt()
   @Min(1)
   adults?: number;
+
+  @ApiPropertyOptional({
+    description:
+      'Korporativni access_code — otključava i privatne rate planove vezane za taj CorporateAccount ' +
+      '(pogl. 25). Planovi sa lastRoomAvailability=true zaobilaze min-LOS/closed-to-arrival restrikcije.',
+  })
+  @IsOptional()
+  @IsString()
+  corporateAccessCode?: string;
 }

@@ -26,6 +26,7 @@ import { SpaModule } from './modules/spa/spa.module';
 import { MiceModule } from './modules/mice/mice.module';
 import { ActivitiesModule } from './modules/activities/activities.module';
 import { ComplianceModule } from './modules/compliance/compliance.module';
+import { CorporateModule } from './modules/corporate/corporate.module';
 
 @Module({
   imports: [
@@ -51,6 +52,7 @@ import { ComplianceModule } from './modules/compliance/compliance.module';
     MiceModule,
     ActivitiesModule,
     ComplianceModule,
+    CorporateModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },

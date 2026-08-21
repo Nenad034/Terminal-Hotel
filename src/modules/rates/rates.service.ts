@@ -122,6 +122,40 @@ export class RatesService {
 
   // ─── Availability Check ─────────────────────────────────────────────────────
 
+  /**
+   * Korporativna cena je RatePlan sa ograničenom vidljivošću (isPublic=false)
+   * vezan za CorporateAccount preko access_code (pogl. 25). LRA (Last Room
+   * Availability) je override flag koji zaobilazi min-LOS/closed-to-arrival
+   * restrikcije specifično za taj plan — NE garantuje fizičku sobu kad je
+   * objekat stvarno pun (nema modelovan zaseban korporativni allotment pool,
+   * pa se ne pretvara da postoji soba koje nema).
+   */
+  private async resolveEligibleRatePlans(propertyId: string, corporateAccessCode?: string) {
+    let corporateAccountId: string | undefined;
+    if (corporateAccessCode) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const account = await this.prisma.corporateAccount.findUnique({
+        where: { accessCode: corporateAccessCode },
+      });
+      if (
+        account &&
+        account.organizationId &&
+        (!account.contractStart || account.contractStart <= today) &&
+        (!account.contractEnd || account.contractEnd >= today)
+      ) {
+        corporateAccountId = account.id;
+      }
+    }
+
+    return this.prisma.ratePlan.findMany({
+      where: {
+        propertyId,
+        OR: [{ isPublic: true }, ...(corporateAccountId ? [{ corporateAccountId }] : [])],
+      },
+    });
+  }
+
   async checkAvailability(propertyId: string, query: AvailabilityQueryDto) {
     const checkIn = new Date(query.checkIn);
     const checkOut = new Date(query.checkOut);
@@ -133,6 +167,8 @@ export class RatesService {
     const nights = Math.ceil(
       (checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24),
     );
+
+    const eligiblePlans = await this.resolveEligibleRatePlans(propertyId, query.corporateAccessCode);
 
     // Svi tipovi soba u objektu
     const roomTypes = await this.prisma.roomType.findMany({
@@ -182,15 +218,32 @@ export class RatesService {
 
         const available = Math.max(0, totalRooms - bookedRooms - groupBlocked);
 
-        // Tražimo najmanju dostupnu cenu za traženi period
-        const lowestRate = await this.prisma.rate.aggregate({
-          where: {
-            roomTypeId: rt.id,
-            ratePlan: { propertyId, isPublic: true },
-            stayDate: { gte: checkIn, lt: checkOut },
-          },
-          _min: { price: true },
-        });
+        // Za svaki podobni rate plan proveri min-LOS/closed-to-arrival (LRA planovi
+        // ih zaobilaze) i sakupi cene po noćenju — plan se nudi samo ako ima cenu
+        // upisanu za SVAKI dan boravka.
+        let bestPlan: { code: string; total: number } | null = null;
+
+        for (const plan of eligiblePlans) {
+          const rates = await this.prisma.rate.findMany({
+            where: { roomTypeId: rt.id, ratePlanId: plan.id, stayDate: { gte: checkIn, lt: checkOut } },
+            orderBy: { stayDate: 'asc' },
+          });
+          if (rates.length !== nights) continue; // nepotpun kalendar cena za ovaj plan
+
+          if (!plan.lastRoomAvailability) {
+            const arrivalRate = rates[0];
+            const effectiveMinLos = arrivalRate.minLosOverride ?? plan.minLos ?? 1;
+            if (nights < effectiveMinLos) continue;
+
+            const effectiveClosedToArrival = arrivalRate.closedToArrivalOverride ?? plan.closedToArrival;
+            if (effectiveClosedToArrival) continue;
+          }
+
+          const total = rates.reduce((sum, r) => sum + Number(r.price), 0);
+          if (!bestPlan || total < bestPlan.total) {
+            bestPlan = { code: plan.code, total };
+          }
+        }
 
         return {
           roomTypeId: rt.id,
@@ -202,13 +255,9 @@ export class RatesService {
           totalRooms,
           available,
           isAvailable: available > 0,
-          lowestNightlyRate: lowestRate._min.price
-            ? Number(lowestRate._min.price)
-            : null,
-          totalForStay:
-            lowestRate._min.price !== null && lowestRate._min.price !== undefined
-              ? Number(lowestRate._min.price) * nights
-              : null,
+          ratePlanCode: bestPlan?.code ?? null,
+          lowestNightlyRate: bestPlan ? Math.round((bestPlan.total / nights) * 100) / 100 : null,
+          totalForStay: bestPlan ? bestPlan.total : null,
           nights,
         };
       }),
