@@ -18,6 +18,7 @@ import { WorkersModule } from './modules/workers/workers.module';
 import { TasksModule } from './modules/tasks/tasks.module';
 import { DiningModule } from './modules/dining/dining.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
+import { FinanceModule } from './modules/finance/finance.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { InventoryModule } from './modules/inventory/inventory.module';
     TasksModule,
     DiningModule,
     InventoryModule,
+    FinanceModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },

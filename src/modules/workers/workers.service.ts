@@ -4,6 +4,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { ReservationsService } from '../reservations/reservations.service';
 import { FoliosService } from '../folios/folios.service';
 import { CapacityService } from '../capacity/capacity.service';
+import { FinanceService } from '../finance/finance.service';
 
 @Injectable()
 export class WorkersService {
@@ -14,6 +15,7 @@ export class WorkersService {
     private readonly reservationsService: ReservationsService,
     private readonly foliosService: FoliosService,
     private readonly capacityService: CapacityService,
+    private readonly financeService: FinanceService,
   ) {}
 
   // ─── TTL Sweep — svakih 60 sekundi ────────────────────────────────────────
@@ -39,8 +41,9 @@ export class WorkersService {
    * Noćni audit — automatski se pokreće u 03:00.
    * Zadaci:
    *  1. Knjiženje noćenja (accommodation charge) za sve checked_in rezervacije
-   *  2. Upis dnevnog occupancy snapshot-a
-   *  3. Prebacivanje rezervacija koje su imale checkout danas u "checked_out" (no-show logika)
+   *  2. GL journal entries za sve folio stavke poslovnog dana (pogl. 21)
+   *  3. Upis dnevnog occupancy snapshot-a
+   *  4. Prebacivanje rezervacija koje su imale checkout danas u "checked_out" (no-show logika)
    */
   @Cron('0 3 * * *', { timeZone: 'Europe/Belgrade' })
   async runNightAudit() {
@@ -111,7 +114,11 @@ export class WorkersService {
       }
     }
 
-    // 2. Upis occupancy snapshot za sobe
+    // 2. GL journal entries — pokriva i noćenja iz koraka 1 i F&B/ostale
+    // stavke knjižene tokom dana (npr. post-to-room iz M11).
+    const journaled = await this.financeService.postJournalEntriesForDate(propertyId, businessDate);
+
+    // 3. Upis occupancy snapshot za sobe
     const [totalRooms, occupiedRooms, availableRooms] = await Promise.all([
       this.prisma.room.count({ where: { propertyId, outOfOrder: false, outOfService: false } }),
       this.prisma.room.count({ where: { propertyId, occupancyStatus: 'occupied', outOfOrder: false, outOfService: false } }),
@@ -148,7 +155,7 @@ export class WorkersService {
       },
     });
 
-    // 3. No-show procesuiranje — rezervacije koje su trebale da dođu juče a nisu
+    // 4. No-show procesuiranje — rezervacije koje su trebale da dođu juče a nisu
     const noShowReservations = await this.prisma.reservation.findMany({
       where: {
         propertyId,
@@ -176,7 +183,7 @@ export class WorkersService {
     }
 
     this.logger.log(
-      `Property ${propertyId}: ${chargesPosted} noćenja knjižena, ` +
+      `Property ${propertyId}: ${chargesPosted} noćenja knjižena, ${journaled} GL stavki proknjiženo, ` +
       `${noShowReservations.length} no-show označenih, snapshot upisan.`,
     );
   }
