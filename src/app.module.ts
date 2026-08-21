@@ -30,6 +30,7 @@ import { CorporateModule } from './modules/corporate/corporate.module';
 import { EsgModule } from './modules/esg/esg.module';
 import { ReviewsModule } from './modules/reviews/reviews.module';
 import { LoyaltyModule } from './modules/loyalty/loyalty.module';
+import { RsComplianceModule } from './modules/rs-compliance/rs-compliance.module';
 
 @Module({
   imports: [
@@ -59,6 +60,7 @@ import { LoyaltyModule } from './modules/loyalty/loyalty.module';
     EsgModule,
     ReviewsModule,
     LoyaltyModule,
+    RsComplianceModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },

@@ -5,10 +5,14 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { AddChargeDto, AddPaymentDto, VoidChargeDto } from './dto/folio.dto';
+import { FiscalService } from '../rs-compliance/fiscal.service';
 
 @Injectable()
 export class FoliosService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly fiscalService: FiscalService,
+  ) {}
 
   private async findFolioById(propertyId: string, folioId: string) {
     const folio = await this.prisma.folio.findFirst({
@@ -97,6 +101,11 @@ export class FoliosService {
     });
   }
 
+  /**
+   * Uplata + fiskalizacija se knjiže u istoj transakciji — fiskalizacija je
+   * zakonski uslov naplate u RS (pogl. 17), pa ako PFR poziv ne uspe, cela
+   * uplata se odbija (nema "uplaćeno, ali nefiskalizovano" stanje).
+   */
   async addPayment(propertyId: string, folioId: string, dto: AddPaymentDto) {
     const folio = await this.findFolioById(propertyId, folioId);
 
@@ -104,17 +113,30 @@ export class FoliosService {
       throw new BadRequestException('Ne može se knjižiti uplata na zatvoren folio.');
     }
 
-    return this.prisma.payment.create({
-      data: {
+    return this.prisma.$transaction(async (tx) => {
+      const payment = await tx.payment.create({
+        data: {
+          folioId,
+          amount: dto.amount,
+          currency: dto.currency ?? folio.currency,
+          method: dto.method,
+          paymentToken: dto.paymentToken,
+          reference: dto.reference,
+          status: 'captured',
+          postedBy: dto.postedBy,
+        },
+      });
+
+      const fiscalDocument = await this.fiscalService.issueForPayment(
+        tx,
+        propertyId,
         folioId,
-        amount: dto.amount,
-        currency: dto.currency ?? folio.currency,
-        method: dto.method,
-        paymentToken: dto.paymentToken,
-        reference: dto.reference,
-        status: 'captured',
-        postedBy: dto.postedBy,
-      },
+        payment.id,
+        dto.amount,
+        folio.lineItems,
+      );
+
+      return { ...payment, fiscalDocument };
     });
   }
 

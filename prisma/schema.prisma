@@ -15,9 +15,9 @@ datasource db {
 // ============================================================
 
 model Organization {
-  id         String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name       String
-  createdAt  DateTime   @default(now()) @map("created_at") @db.Timestamptz
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   properties        Property[]
   guestProfiles     GuestProfile[]
@@ -28,15 +28,16 @@ model Organization {
 }
 
 model Property {
-  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  organizationId String   @map("organization_id") @db.Uuid
-  name           String
-  timezone       String   @default("Europe/Belgrade")
-  currency       String   @default("RSD") @db.Char(3)
-  address        Json     @default("{}")
-  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId     String   @map("organization_id") @db.Uuid
+  name               String
+  timezone           String   @default("Europe/Belgrade")
+  currency           String   @default("RSD") @db.Char(3)
+  address            Json     @default("{}")
+  touristTaxPerNight Decimal  @default(0) @map("tourist_tax_per_night") @db.Decimal(8, 2)
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz
 
-  organization         Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization         Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   roomTypes            RoomType[]
   rooms                Room[]
   rateGroups           RateGroup[]
@@ -65,6 +66,9 @@ model Property {
   transfers            Transfer[]
   depletionAdjustments DepletionAdjustment[]
   recipes              Recipe[]
+  fiscalDocuments      FiscalDocument[]
+  sefInvoices          SefInvoice[]
+  eturistaBatches      EturistaBatch[]
 
   @@index([organizationId], name: "idx_property_org")
   @@map("property")
@@ -75,22 +79,22 @@ model Property {
 // ============================================================
 
 model RoomType {
-  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  propertyId     String   @map("property_id") @db.Uuid
-  code           String
-  name           String
-  description    String?
-  baseOccupancy  Int      @default(2) @map("base_occupancy")
-  maxOccupancy   Int      @default(2) @map("max_occupancy")
-  accessible     Boolean  @default(false)
-  amenities      Json     @default("[]")
-  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  propertyId    String   @map("property_id") @db.Uuid
+  code          String
+  name          String
+  description   String?
+  baseOccupancy Int      @default(2) @map("base_occupancy")
+  maxOccupancy  Int      @default(2) @map("max_occupancy")
+  accessible    Boolean  @default(false)
+  amenities     Json     @default("[]")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
 
-  property      Property      @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  rooms         Room[]
-  rates         Rate[]
-  groupAllots   GroupBlockAllotment[]
-  reservations  Reservation[]
+  property     Property              @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  rooms        Room[]
+  rates        Rate[]
+  groupAllots  GroupBlockAllotment[]
+  reservations Reservation[]
 
   @@unique([propertyId, code])
   @@map("room_type")
@@ -113,22 +117,22 @@ enum CleanlinessStatus {
 }
 
 model Room {
-  id                 String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  propertyId         String            @map("property_id") @db.Uuid
-  roomTypeId         String            @map("room_type_id") @db.Uuid
-  roomNumber         String            @map("room_number")
-  floor              String?
-  occupancyStatus    String            @default("vacant") @map("occupancy_status")
-  cleanlinessStatus  String            @default("clean") @map("cleanliness_status")
-  outOfOrder         Boolean           @default(false) @map("out_of_order")
-  outOfService       Boolean           @default(false) @map("out_of_service")
-  createdAt          DateTime          @default(now()) @map("created_at") @db.Timestamptz
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  propertyId        String   @map("property_id") @db.Uuid
+  roomTypeId        String   @map("room_type_id") @db.Uuid
+  roomNumber        String   @map("room_number")
+  floor             String?
+  occupancyStatus   String   @default("vacant") @map("occupancy_status")
+  cleanlinessStatus String   @default("clean") @map("cleanliness_status")
+  outOfOrder        Boolean  @default(false) @map("out_of_order")
+  outOfService      Boolean  @default(false) @map("out_of_service")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz
 
-  property          Property            @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  roomType          RoomType            @relation(fields: [roomTypeId], references: [id])
-  statusEvents      RoomStatusEvent[]
-  reservations      Reservation[]
-  tasks             Task[]
+  property     Property          @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  roomType     RoomType          @relation(fields: [roomTypeId], references: [id])
+  statusEvents RoomStatusEvent[]
+  reservations Reservation[]
+  tasks        Task[]
 
   @@unique([propertyId, roomNumber])
   @@index([propertyId], name: "idx_room_property")
@@ -137,12 +141,12 @@ model Room {
 }
 
 model RoomStatusEvent {
-  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  roomId             String   @map("room_id") @db.Uuid
-  occupancyStatus    String   @map("occupancy_status")
-  cleanlinessStatus  String   @map("cleanliness_status")
-  changedBy          String?  @map("changed_by") @db.Uuid
-  occurredAt         DateTime @default(now()) @map("occurred_at") @db.Timestamptz
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  roomId            String   @map("room_id") @db.Uuid
+  occupancyStatus   String   @map("occupancy_status")
+  cleanlinessStatus String   @map("cleanliness_status")
+  changedBy         String?  @map("changed_by") @db.Uuid
+  occurredAt        DateTime @default(now()) @map("occurred_at") @db.Timestamptz
 
   room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
 
@@ -155,8 +159,8 @@ model RoomStatusEvent {
 // ============================================================
 
 model RateGroup {
-  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  propertyId String   @map("property_id") @db.Uuid
+  id         String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  propertyId String @map("property_id") @db.Uuid
   name       String
 
   property  Property   @relation(fields: [propertyId], references: [id], onDelete: Cascade)
@@ -195,14 +199,14 @@ model RatePlan {
 }
 
 model Rate {
-  id                       String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  ratePlanId               String   @map("rate_plan_id") @db.Uuid
-  roomTypeId               String   @map("room_type_id") @db.Uuid
-  stayDate                 DateTime @map("stay_date") @db.Date
-  price                    Decimal  @db.Decimal(12, 2)
-  minLosOverride           Int?     @map("min_los_override")
-  closedToArrivalOverride  Boolean? @map("closed_to_arrival_override")
-  updatedAt                DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  id                      String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ratePlanId              String   @map("rate_plan_id") @db.Uuid
+  roomTypeId              String   @map("room_type_id") @db.Uuid
+  stayDate                DateTime @map("stay_date") @db.Date
+  price                   Decimal  @db.Decimal(12, 2)
+  minLosOverride          Int?     @map("min_los_override")
+  closedToArrivalOverride Boolean? @map("closed_to_arrival_override")
+  updatedAt               DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   ratePlan RatePlan @relation(fields: [ratePlanId], references: [id], onDelete: Cascade)
   roomType RoomType @relation(fields: [roomTypeId], references: [id], onDelete: Cascade)
@@ -218,23 +222,23 @@ model Rate {
 // ============================================================
 
 model GuestProfile {
-  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  organizationId      String    @map("organization_id") @db.Uuid
-  firstName           String    @map("first_name")
-  lastName            String    @map("last_name")
-  email               String?
-  phone               String?
-  idDocumentType      String?   @map("id_document_type")
-  idDocumentNumber    String?   @map("id_document_number")
-  nationality         String?
-  preferences         Json      @default("{}")
-  marketingConsent    Boolean   @default(false) @map("marketing_consent")
-  consentRecordedAt   DateTime? @map("consent_recorded_at") @db.Timestamptz
-  gdprDeletedAt       DateTime? @map("gdpr_deleted_at") @db.Timestamptz
-  loyaltyTier         String?   @map("loyalty_tier")
-  loyaltyNumber       String?   @map("loyalty_number")
-  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt           DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId    String    @map("organization_id") @db.Uuid
+  firstName         String    @map("first_name")
+  lastName          String    @map("last_name")
+  email             String?
+  phone             String?
+  idDocumentType    String?   @map("id_document_type")
+  idDocumentNumber  String?   @map("id_document_number")
+  nationality       String?
+  preferences       Json      @default("{}")
+  marketingConsent  Boolean   @default(false) @map("marketing_consent")
+  consentRecordedAt DateTime? @map("consent_recorded_at") @db.Timestamptz
+  gdprDeletedAt     DateTime? @map("gdpr_deleted_at") @db.Timestamptz
+  loyaltyTier       String?   @map("loyalty_tier")
+  loyaltyNumber     String?   @map("loyalty_number")
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   organization          Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   reservations          Reservation[]
@@ -254,10 +258,10 @@ model GuestProfile {
 // ============================================================
 
 model Role {
-  id         String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  propertyId String @map("property_id") @db.Uuid
-  name       String
-  permissions Json  @default("[]")
+  id          String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  propertyId  String @map("property_id") @db.Uuid
+  name        String
+  permissions Json   @default("[]")
 
   employees Employee[]
   shifts    Shift[]
@@ -266,26 +270,26 @@ model Role {
 }
 
 model Employee {
-  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  propertyId String   @map("property_id") @db.Uuid
-  roleId     String   @map("role_id") @db.Uuid
-  firstName  String   @map("first_name")
-  lastName   String   @map("last_name")
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  propertyId   String   @map("property_id") @db.Uuid
+  roleId       String   @map("role_id") @db.Uuid
+  firstName    String   @map("first_name")
+  lastName     String   @map("last_name")
   email        String
   passwordHash String   @map("password_hash")
   isActive     Boolean  @default(true) @map("is_active")
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
 
-  property             Property              @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  role                 Role                  @relation(fields: [roleId], references: [id])
-  shifts               Shift[]
-  timeClockEvents      TimeClockEvent[]
-  certifications       StaffCertification[]
-  tasks                Task[]
-  incidentsReported    IncidentReport[]      @relation("ReportedBy")
-  incidentsInvolved    IncidentReport[]      @relation("InvolvedEmployee")
-  correctiveActions    CorrectiveAction[]
-  haccpLogs            HaccpCcpLog[]
+  property          Property             @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  role              Role                 @relation(fields: [roleId], references: [id])
+  shifts            Shift[]
+  timeClockEvents   TimeClockEvent[]
+  certifications    StaffCertification[]
+  tasks             Task[]
+  incidentsReported IncidentReport[]     @relation("ReportedBy")
+  incidentsInvolved IncidentReport[]     @relation("InvolvedEmployee")
+  correctiveActions CorrectiveAction[]
+  haccpLogs         HaccpCcpLog[]
 
   @@unique([propertyId, email], name: "uq_employee_property_email")
   @@index([propertyId], name: "idx_employee_property")
@@ -297,19 +301,19 @@ model Employee {
 // ============================================================
 
 model GroupBlock {
-  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  propertyId       String    @map("property_id") @db.Uuid
-  name             String
-  status           String    @default("tentative")
-  checkIn          DateTime  @map("check_in") @db.Date
-  checkOut         DateTime  @map("check_out") @db.Date
-  releaseStrategy  String    @default("none") @map("release_strategy")
-  releaseDate      DateTime? @map("release_date") @db.Date
-  masterFolioId    String?   @map("master_folio_id") @db.Uuid
-  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  propertyId      String    @map("property_id") @db.Uuid
+  name            String
+  status          String    @default("tentative")
+  checkIn         DateTime  @map("check_in") @db.Date
+  checkOut        DateTime  @map("check_out") @db.Date
+  releaseStrategy String    @default("none") @map("release_strategy")
+  releaseDate     DateTime? @map("release_date") @db.Date
+  masterFolioId   String?   @map("master_folio_id") @db.Uuid
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
 
-  property    Property              @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  allotments  GroupBlockAllotment[]
+  property   Property              @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  allotments GroupBlockAllotment[]
 
   @@map("group_block")
 }
@@ -355,15 +359,15 @@ model Reservation {
   createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz
   updatedAt          DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
-  property       Property                  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  primaryGuest   GuestProfile              @relation(fields: [primaryGuestId], references: [id])
-  roomType       RoomType                  @relation(fields: [roomTypeId], references: [id])
-  room           Room?                     @relation(fields: [roomId], references: [id])
-  ratePlan       RatePlan?                 @relation(fields: [ratePlanId], references: [id])
-  statusEvents   ReservationStatusEvent[]
-  folios         Folio[]
+  property         Property                  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  primaryGuest     GuestProfile              @relation(fields: [primaryGuestId], references: [id])
+  roomType         RoomType                  @relation(fields: [roomTypeId], references: [id])
+  room             Room?                     @relation(fields: [roomId], references: [id])
+  ratePlan         RatePlan?                 @relation(fields: [ratePlanId], references: [id])
+  statusEvents     ReservationStatusEvent[]
+  folios           Folio[]
   activityBookings ActivityBooking[]
-  loyaltyTxns    LoyaltyPointTransaction[]
+  loyaltyTxns      LoyaltyPointTransaction[]
 
   @@index([propertyId, checkIn, checkOut], name: "idx_reservation_dates")
   @@index([propertyId, status], name: "idx_reservation_status")
@@ -373,14 +377,14 @@ model Reservation {
 }
 
 model ReservationStatusEvent {
-  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  reservationId    String   @map("reservation_id") @db.Uuid
-  fromStatus       String   @map("from_status")
-  toStatus         String   @map("to_status")
-  actorEmployeeId  String?  @map("actor_employee_id") @db.Uuid
-  actorType        String   @default("employee") @map("actor_type")
-  note             String?
-  occurredAt       DateTime @default(now()) @map("occurred_at") @db.Timestamptz
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  reservationId   String   @map("reservation_id") @db.Uuid
+  fromStatus      String   @map("from_status")
+  toStatus        String   @map("to_status")
+  actorEmployeeId String?  @map("actor_employee_id") @db.Uuid
+  actorType       String   @default("employee") @map("actor_type")
+  note            String?
+  occurredAt      DateTime @default(now()) @map("occurred_at") @db.Timestamptz
 
   reservation Reservation @relation(fields: [reservationId], references: [id], onDelete: Cascade)
 
@@ -393,39 +397,41 @@ model ReservationStatusEvent {
 // ============================================================
 
 model Folio {
-  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  propertyId     String   @map("property_id") @db.Uuid
-  reservationId  String?  @map("reservation_id") @db.Uuid
-  ownerType      String   @default("guest") @map("owner_type")
-  ownerGuestId   String?  @map("owner_guest_id") @db.Uuid
-  ownerCompany   String?  @map("owner_company")
-  status         String   @default("open")
-  currency       String   @default("RSD") @db.Char(3)
-  closedAt       DateTime? @map("closed_at") @db.Timestamptz
-  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  propertyId    String    @map("property_id") @db.Uuid
+  reservationId String?   @map("reservation_id") @db.Uuid
+  ownerType     String    @default("guest") @map("owner_type")
+  ownerGuestId  String?   @map("owner_guest_id") @db.Uuid
+  ownerCompany  String?   @map("owner_company")
+  status        String    @default("open")
+  currency      String    @default("RSD") @db.Char(3)
+  closedAt      DateTime? @map("closed_at") @db.Timestamptz
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
 
-  reservation  Reservation?    @relation(fields: [reservationId], references: [id])
-  lineItems    FolioLineItem[]
-  payments     Payment[]
+  reservation     Reservation?     @relation(fields: [reservationId], references: [id])
+  lineItems       FolioLineItem[]
+  payments        Payment[]
+  fiscalDocuments FiscalDocument[]
+  sefInvoices     SefInvoice[]
 
   @@index([reservationId], name: "idx_folio_reservation")
   @@map("folio")
 }
 
 model FolioLineItem {
-  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  folioId         String   @map("folio_id") @db.Uuid
-  chargeDate      DateTime @map("charge_date") @db.Date
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  folioId         String    @map("folio_id") @db.Uuid
+  chargeDate      DateTime  @map("charge_date") @db.Date
   description     String
-  revenueCategory String   @map("revenue_category")
-  quantity        Decimal  @default(1) @db.Decimal(10, 3)
-  unitPrice       Decimal  @map("unit_price") @db.Decimal(12, 2)
-  totalAmount     Decimal  @map("total_amount") @db.Decimal(12, 2)
-  taxAmount       Decimal  @default(0) @map("tax_amount") @db.Decimal(12, 2)
-  taxRate         Decimal  @default(0) @map("tax_rate") @db.Decimal(5, 4)
+  revenueCategory String    @map("revenue_category")
+  quantity        Decimal   @default(1) @db.Decimal(10, 3)
+  unitPrice       Decimal   @map("unit_price") @db.Decimal(12, 2)
+  totalAmount     Decimal   @map("total_amount") @db.Decimal(12, 2)
+  taxAmount       Decimal   @default(0) @map("tax_amount") @db.Decimal(12, 2)
+  taxRate         Decimal   @default(0) @map("tax_rate") @db.Decimal(5, 4)
   voidedAt        DateTime? @map("voided_at") @db.Timestamptz
-  postedBy        String?  @map("posted_by") @db.Uuid
-  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+  postedBy        String?   @map("posted_by") @db.Uuid
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
 
   folio          Folio          @relation(fields: [folioId], references: [id], onDelete: Cascade)
   journalEntries JournalEntry[]
@@ -435,16 +441,16 @@ model FolioLineItem {
 }
 
 model Payment {
-  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  folioId         String   @map("folio_id") @db.Uuid
-  amount          Decimal  @db.Decimal(12, 2)
-  currency        String   @default("RSD") @db.Char(3)
-  method          String
-  paymentToken    String?  @map("payment_token")
-  reference       String?
-  status          String   @default("captured")
-  postedBy        String?  @map("posted_by") @db.Uuid
-  occurredAt      DateTime @default(now()) @map("occurred_at") @db.Timestamptz
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  folioId      String   @map("folio_id") @db.Uuid
+  amount       Decimal  @db.Decimal(12, 2)
+  currency     String   @default("RSD") @db.Char(3)
+  method       String
+  paymentToken String?  @map("payment_token")
+  reference    String?
+  status       String   @default("captured")
+  postedBy     String?  @map("posted_by") @db.Uuid
+  occurredAt   DateTime @default(now()) @map("occurred_at") @db.Timestamptz
 
   folio Folio @relation(fields: [folioId], references: [id], onDelete: Cascade)
 
@@ -457,23 +463,23 @@ model Payment {
 // ============================================================
 
 model Task {
-  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  propertyId     String    @map("property_id") @db.Uuid
-  roomId         String?   @map("room_id") @db.Uuid
-  reservationId  String?   @map("reservation_id") @db.Uuid
-  taskType       String    @map("task_type")
-  priority       String    @default("normal")
-  status         String    @default("open")
-  title          String
-  description    String?
-  assignedTo     String?   @map("assigned_to") @db.Uuid
-  dueAt          DateTime? @map("due_at") @db.Timestamptz
-  completedAt    DateTime? @map("completed_at") @db.Timestamptz
-  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  propertyId    String    @map("property_id") @db.Uuid
+  roomId        String?   @map("room_id") @db.Uuid
+  reservationId String?   @map("reservation_id") @db.Uuid
+  taskType      String    @map("task_type")
+  priority      String    @default("normal")
+  status        String    @default("open")
+  title         String
+  description   String?
+  assignedTo    String?   @map("assigned_to") @db.Uuid
+  dueAt         DateTime? @map("due_at") @db.Timestamptz
+  completedAt   DateTime? @map("completed_at") @db.Timestamptz
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
 
-  property  Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  room      Room?     @relation(fields: [roomId], references: [id])
-  assignee  Employee? @relation(fields: [assignedTo], references: [id])
+  property Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  room     Room?     @relation(fields: [roomId], references: [id])
+  assignee Employee? @relation(fields: [assignedTo], references: [id])
 
   @@index([propertyId, status], name: "idx_task_property_status")
   @@index([roomId], name: "idx_task_room")
@@ -485,18 +491,18 @@ model Task {
 // ============================================================
 
 model ActivityBooking {
-  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  reservationId   String   @map("reservation_id") @db.Uuid
-  guestProfileId  String   @map("guest_profile_id") @db.Uuid
-  activityName    String   @map("activity_name")
-  provider        String?
-  externalRef     String?  @map("external_ref")
-  scheduledAt     DateTime @map("scheduled_at") @db.Timestamptz
-  paxCount        Int      @default(1) @map("pax_count")
-  totalPrice      Decimal  @db.Decimal(12, 2)
-  currency        String   @default("RSD") @db.Char(3)
-  status          String   @default("booked")
-  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  reservationId  String   @map("reservation_id") @db.Uuid
+  guestProfileId String   @map("guest_profile_id") @db.Uuid
+  activityName   String   @map("activity_name")
+  provider       String?
+  externalRef    String?  @map("external_ref")
+  scheduledAt    DateTime @map("scheduled_at") @db.Timestamptz
+  paxCount       Int      @default(1) @map("pax_count")
+  totalPrice     Decimal  @db.Decimal(12, 2)
+  currency       String   @default("RSD") @db.Char(3)
+  status         String   @default("booked")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   reservation  Reservation  @relation(fields: [reservationId], references: [id], onDelete: Cascade)
   guestProfile GuestProfile @relation(fields: [guestProfileId], references: [id])
@@ -544,14 +550,14 @@ model TimeClockEvent {
 }
 
 model StaffCertification {
-  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  employeeId            String    @map("employee_id") @db.Uuid
-  certificationType     String    @map("certification_type")
-  issuedAt              DateTime  @map("issued_at") @db.Date
-  expiresAt             DateTime? @map("expires_at") @db.Date
-  verifiedByEmployeeId  String?   @map("verified_by_employee_id") @db.Uuid
-  documentReference     String?   @map("document_reference")
-  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employeeId           String    @map("employee_id") @db.Uuid
+  certificationType    String    @map("certification_type")
+  issuedAt             DateTime  @map("issued_at") @db.Date
+  expiresAt            DateTime? @map("expires_at") @db.Date
+  verifiedByEmployeeId String?   @map("verified_by_employee_id") @db.Uuid
+  documentReference    String?   @map("document_reference")
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz
 
   employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
@@ -576,28 +582,28 @@ model JournalEntry {
   exportedAt      DateTime? @map("exported_at") @db.Timestamptz
   createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
 
-  property      Property       @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  sourceItem    FolioLineItem? @relation(fields: [sourceReference], references: [id])
+  property   Property       @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  sourceItem FolioLineItem? @relation(fields: [sourceReference], references: [id])
 
   @@index([propertyId, businessDate], name: "idx_journal_entry_property_date")
   @@map("journal_entry")
 }
 
 model AuditEvent {
-  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  organizationId   String   @map("organization_id") @db.Uuid
-  propertyId       String?  @map("property_id") @db.Uuid
-  actorEmployeeId  String?  @map("actor_employee_id") @db.Uuid
-  actorType        String   @default("employee") @map("actor_type")
-  action           String
-  resourceType     String   @map("resource_type")
-  resourceId       String?  @map("resource_id") @db.Uuid
-  beforeState      Json?    @map("before_state")
-  afterState       Json?    @map("after_state")
-  metadata         Json     @default("{}") @map("metadata")
-  prevEventHash    String?  @map("prev_event_hash")
-  eventHash        String?  @map("event_hash")
-  occurredAt       DateTime @default(now()) @map("occurred_at") @db.Timestamptz
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId  String   @map("organization_id") @db.Uuid
+  propertyId      String?  @map("property_id") @db.Uuid
+  actorEmployeeId String?  @map("actor_employee_id") @db.Uuid
+  actorType       String   @default("employee") @map("actor_type")
+  action          String
+  resourceType    String   @map("resource_type")
+  resourceId      String?  @map("resource_id") @db.Uuid
+  beforeState     Json?    @map("before_state")
+  afterState      Json?    @map("after_state")
+  metadata        Json     @default("{}") @map("metadata")
+  prevEventHash   String?  @map("prev_event_hash")
+  eventHash       String?  @map("event_hash")
+  occurredAt      DateTime @default(now()) @map("occurred_at") @db.Timestamptz
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   property     Property?    @relation(fields: [propertyId], references: [id])
@@ -612,17 +618,17 @@ model AuditEvent {
 // ============================================================
 
 model CorrectiveAction {
-  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  propertyId            String    @map("property_id") @db.Uuid
-  actionTaken           String    @map("action_taken")
-  resolvedByEmployeeId  String?   @map("resolved_by_employee_id") @db.Uuid
-  resolvedAt            DateTime? @map("resolved_at") @db.Timestamptz
-  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  propertyId           String    @map("property_id") @db.Uuid
+  actionTaken          String    @map("action_taken")
+  resolvedByEmployeeId String?   @map("resolved_by_employee_id") @db.Uuid
+  resolvedAt           DateTime? @map("resolved_at") @db.Timestamptz
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz
 
-  property         Property         @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  resolvedBy       Employee?        @relation(fields: [resolvedByEmployeeId], references: [id])
-  haccpLogs        HaccpCcpLog[]
-  incidentReports  IncidentReport[]
+  property        Property         @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  resolvedBy      Employee?        @relation(fields: [resolvedByEmployeeId], references: [id])
+  haccpLogs       HaccpCcpLog[]
+  incidentReports IncidentReport[]
 
   @@map("corrective_action")
 }
@@ -650,22 +656,22 @@ model HaccpCcpLog {
 }
 
 model IncidentReport {
-  id                       String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  propertyId               String    @map("property_id") @db.Uuid
-  incidentType             String    @map("incident_type")
-  occurredAt               DateTime  @default(now()) @map("occurred_at") @db.Timestamptz
-  location                 String?
-  involvedGuestId          String?   @map("involved_guest_id") @db.Uuid
-  involvedEmployeeId       String?   @map("involved_employee_id") @db.Uuid
-  description              String
-  severity                 String    @default("low")
-  evidenceRefs             Json      @default("[]") @map("evidence_refs")
-  rootCause                String?   @map("root_cause")
-  status                   String    @default("open")
-  reportedByEmployeeId     String?   @map("reported_by_employee_id") @db.Uuid
-  insuranceClaimReference  String?   @map("insurance_claim_reference")
-  correctiveActionId       String?   @map("corrective_action_id") @db.Uuid
-  createdAt                DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  id                      String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  propertyId              String   @map("property_id") @db.Uuid
+  incidentType            String   @map("incident_type")
+  occurredAt              DateTime @default(now()) @map("occurred_at") @db.Timestamptz
+  location                String?
+  involvedGuestId         String?  @map("involved_guest_id") @db.Uuid
+  involvedEmployeeId      String?  @map("involved_employee_id") @db.Uuid
+  description             String
+  severity                String   @default("low")
+  evidenceRefs            Json     @default("[]") @map("evidence_refs")
+  rootCause               String?  @map("root_cause")
+  status                  String   @default("open")
+  reportedByEmployeeId    String?  @map("reported_by_employee_id") @db.Uuid
+  insuranceClaimReference String?  @map("insurance_claim_reference")
+  correctiveActionId      String?  @map("corrective_action_id") @db.Uuid
+  createdAt               DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   property         Property          @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   involvedGuest    GuestProfile?     @relation(fields: [involvedGuestId], references: [id])
@@ -692,8 +698,72 @@ model CorporateAccount {
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   ratePlans    RatePlan[]
+  sefInvoices  SefInvoice[]
 
   @@map("corporate_account")
+}
+
+// ============================================================
+// USKLAĐENOST RS — FISKALIZACIJA / SEF E-FAKTURA / eTURISTA
+// ============================================================
+
+model FiscalDocument {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  propertyId   String   @map("property_id") @db.Uuid
+  folioId      String   @map("folio_id") @db.Uuid
+  paymentId    String?  @map("payment_id") @db.Uuid
+  pfrType      String   @default("V-PFR") @map("pfr_type")
+  fiscalNumber String   @map("fiscal_number")
+  totalAmount  Decimal  @map("total_amount") @db.Decimal(12, 2)
+  vatBreakdown Json     @default("{}") @map("vat_breakdown")
+  qrCode       String   @map("qr_code")
+  status       String   @default("issued")
+  issuedAt     DateTime @default(now()) @map("issued_at") @db.Timestamptz
+  rawResponse  Json     @default("{}") @map("raw_response")
+
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  folio    Folio    @relation(fields: [folioId], references: [id])
+
+  @@index([propertyId, issuedAt], name: "idx_fiscal_doc_property_date")
+  @@map("fiscal_document")
+}
+
+model SefInvoice {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  propertyId         String    @map("property_id") @db.Uuid
+  folioId            String    @map("folio_id") @db.Uuid
+  corporateAccountId String?   @map("corporate_account_id") @db.Uuid
+  invoiceNumber      String    @unique @map("invoice_number")
+  totalAmount        Decimal   @map("total_amount") @db.Decimal(12, 2)
+  status             String    @default("draft")
+  submittedAt        DateTime? @map("submitted_at") @db.Timestamptz
+  sefResponse        Json      @default("{}") @map("sef_response")
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  property         Property          @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  folio            Folio             @relation(fields: [folioId], references: [id])
+  corporateAccount CorporateAccount? @relation(fields: [corporateAccountId], references: [id])
+
+  @@index([propertyId, createdAt], name: "idx_sef_invoice_property_date")
+  @@map("sef_invoice")
+}
+
+model EturistaBatch {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  propertyId      String    @map("property_id") @db.Uuid
+  periodStart     DateTime  @map("period_start") @db.Date
+  periodEnd       DateTime  @map("period_end") @db.Date
+  guestCount      Int       @default(0) @map("guest_count")
+  touristTaxTotal Decimal   @default(0) @map("tourist_tax_total") @db.Decimal(12, 2)
+  status          String    @default("pending")
+  submittedAt     DateTime? @map("submitted_at") @db.Timestamptz
+  payload         Json      @default("[]")
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([propertyId, periodStart], name: "idx_eturista_batch_property_period")
+  @@map("eturista_batch")
 }
 
 model EsgMetric {
@@ -731,31 +801,31 @@ model Certification {
 // ============================================================
 
 model LoyaltyPointTransaction {
-  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  guestProfileId    String    @map("guest_profile_id") @db.Uuid
-  transactionType   String    @map("transaction_type")
-  amount            Int
-  sourceReservationId String? @map("source_reservation_id") @db.Uuid
-  earnedAt          DateTime  @default(now()) @map("earned_at") @db.Timestamptz
-  expiresAt         DateTime? @map("expires_at") @db.Timestamptz
-  holdUntil         DateTime? @map("hold_until") @db.Timestamptz
-  status            String    @default("posted")
-  description       String?
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  guestProfileId      String    @map("guest_profile_id") @db.Uuid
+  transactionType     String    @map("transaction_type")
+  amount              Int
+  sourceReservationId String?   @map("source_reservation_id") @db.Uuid
+  earnedAt            DateTime  @default(now()) @map("earned_at") @db.Timestamptz
+  expiresAt           DateTime? @map("expires_at") @db.Timestamptz
+  holdUntil           DateTime? @map("hold_until") @db.Timestamptz
+  status              String    @default("posted")
+  description         String?
 
-  guestProfile      GuestProfile  @relation(fields: [guestProfileId], references: [id], onDelete: Cascade)
-  sourceReservation Reservation?  @relation(fields: [sourceReservationId], references: [id])
+  guestProfile      GuestProfile @relation(fields: [guestProfileId], references: [id], onDelete: Cascade)
+  sourceReservation Reservation? @relation(fields: [sourceReservationId], references: [id])
 
   @@index([guestProfileId, earnedAt], name: "idx_loyalty_txn_guest")
   @@map("loyalty_point_transaction")
 }
 
 model LoyaltyTier {
-  id                 String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tierName           String  @unique @map("tier_name")
-  qualifyingNights   Int?    @map("qualifying_nights")
-  qualifyingStays    Int?    @map("qualifying_stays")
-  qualifyingSpend    Decimal? @map("qualifying_spend") @db.Decimal(12, 2)
-  benefits           Json    @default("{}")
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tierName         String   @unique @map("tier_name")
+  qualifyingNights Int?     @map("qualifying_nights")
+  qualifyingStays  Int?     @map("qualifying_stays")
+  qualifyingSpend  Decimal? @map("qualifying_spend") @db.Decimal(12, 2)
+  benefits         Json     @default("{}")
 
   assignments LoyaltyTierAssignment[]
 
@@ -763,12 +833,12 @@ model LoyaltyTier {
 }
 
 model LoyaltyTierAssignment {
-  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  guestProfileId  String    @map("guest_profile_id") @db.Uuid
-  tierId          String    @map("tier_id") @db.Uuid
-  effectiveFrom   DateTime  @map("effective_from") @db.Date
-  effectiveTo     DateTime? @map("effective_to") @db.Date
-  qualifyingPeriod String?  @map("qualifying_period")
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  guestProfileId   String    @map("guest_profile_id") @db.Uuid
+  tierId           String    @map("tier_id") @db.Uuid
+  effectiveFrom    DateTime  @map("effective_from") @db.Date
+  effectiveTo      DateTime? @map("effective_to") @db.Date
+  qualifyingPeriod String?   @map("qualifying_period")
 
   guestProfile GuestProfile @relation(fields: [guestProfileId], references: [id], onDelete: Cascade)
   tier         LoyaltyTier  @relation(fields: [tierId], references: [id])
@@ -781,13 +851,13 @@ model LoyaltyTierAssignment {
 // ============================================================
 
 model DiningOutlet {
-  id          String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  propertyId  String @map("property_id") @db.Uuid
-  name        String
-  outletType  String @default("restaurant") @map("outlet_type")
-  totalSeats  Int    @default(0) @map("total_seats")
+  id         String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  propertyId String @map("property_id") @db.Uuid
+  name       String
+  outletType String @default("restaurant") @map("outlet_type")
+  totalSeats Int    @default(0) @map("total_seats")
 
-  property     Property           @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  property     Property            @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   tables       DiningTable[]
   reservations DiningReservation[]
 
@@ -802,28 +872,28 @@ model DiningTable {
   status           String  @default("available")
   currentBookingId String? @map("current_booking_id") @db.Uuid
 
-  outlet          DiningOutlet       @relation(fields: [outletId], references: [id], onDelete: Cascade)
-  currentBooking  DiningReservation? @relation("CurrentBooking", fields: [currentBookingId], references: [id])
-  reservations    DiningReservation[] @relation("TableReservations")
+  outlet         DiningOutlet        @relation(fields: [outletId], references: [id], onDelete: Cascade)
+  currentBooking DiningReservation?  @relation("CurrentBooking", fields: [currentBookingId], references: [id])
+  reservations   DiningReservation[] @relation("TableReservations")
 
   @@unique([outletId, tableNumber])
   @@map("dining_table")
 }
 
 model DiningReservation {
-  id                      String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  outletId                String    @map("outlet_id") @db.Uuid
-  tableId                 String?   @map("table_id") @db.Uuid
-  guestProfileId          String?   @map("guest_profile_id") @db.Uuid
-  partySize               Int       @default(2) @map("party_size")
-  reservationTime         DateTime  @map("reservation_time") @db.Timestamptz
-  durationMinutesEstimate Int       @default(90) @map("duration_minutes_estimate")
-  status                  String    @default("booked")
-  createdAt               DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  id                      String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  outletId                String   @map("outlet_id") @db.Uuid
+  tableId                 String?  @map("table_id") @db.Uuid
+  guestProfileId          String?  @map("guest_profile_id") @db.Uuid
+  partySize               Int      @default(2) @map("party_size")
+  reservationTime         DateTime @map("reservation_time") @db.Timestamptz
+  durationMinutesEstimate Int      @default(90) @map("duration_minutes_estimate")
+  status                  String   @default("booked")
+  createdAt               DateTime @default(now()) @map("created_at") @db.Timestamptz
 
-  outlet       DiningOutlet  @relation(fields: [outletId], references: [id], onDelete: Cascade)
-  table        DiningTable?  @relation("TableReservations", fields: [tableId], references: [id])
-  guestProfile GuestProfile? @relation(fields: [guestProfileId], references: [id])
+  outlet          DiningOutlet  @relation(fields: [outletId], references: [id], onDelete: Cascade)
+  table           DiningTable?  @relation("TableReservations", fields: [tableId], references: [id])
+  guestProfile    GuestProfile? @relation(fields: [guestProfileId], references: [id])
   currentForTable DiningTable[] @relation("CurrentBooking")
 
   @@index([outletId, reservationTime], name: "idx_dining_res_outlet_time")
@@ -840,7 +910,7 @@ model SpaResource {
   roomCategory      String?   @map("room_category")
   lastSyncedAt      DateTime? @map("last_synced_at") @db.Timestamptz
 
-  property  Property         @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  property  Property              @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   status    SpaResourceStatus?
   blockouts SpaResourceBlockout[]
 
@@ -848,10 +918,10 @@ model SpaResource {
 }
 
 model SpaResourceStatus {
-  spaResourceId              String   @id @map("spa_resource_id") @db.Uuid
-  status                     String   @default("available")
-  statusSince                DateTime @default(now()) @map("status_since") @db.Timestamptz
-  currentAppointmentReference String? @map("current_appointment_reference")
+  spaResourceId               String   @id @map("spa_resource_id") @db.Uuid
+  status                      String   @default("available")
+  statusSince                 DateTime @default(now()) @map("status_since") @db.Timestamptz
+  currentAppointmentReference String?  @map("current_appointment_reference")
 
   spaResource SpaResource @relation(fields: [spaResourceId], references: [id], onDelete: Cascade)
 
@@ -872,28 +942,28 @@ model SpaResourceBlockout {
 }
 
 model FunctionSpace {
-  id               String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  propertyId       String @map("property_id") @db.Uuid
-  name             String
-  capacityBySetup  Json   @default("{}") @map("capacity_by_setup")
+  id              String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  propertyId      String @map("property_id") @db.Uuid
+  name            String
+  capacityBySetup Json   @default("{}") @map("capacity_by_setup")
 
-  property Property                @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  property Property               @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   bookings FunctionSpaceBooking[]
 
   @@map("function_space")
 }
 
 model FunctionSpaceBooking {
-  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  functionSpaceId  String    @map("function_space_id") @db.Uuid
-  eventReference   String?   @map("event_reference")
-  startAt          DateTime  @map("start_at") @db.Timestamptz
-  endAt            DateTime  @map("end_at") @db.Timestamptz
-  setupType        String?   @map("setup_type")
-  bufferBeforeMin  Int       @default(0) @map("buffer_before_minutes")
-  bufferAfterMin   Int       @default(0) @map("buffer_after_minutes")
-  status           String    @default("tentative")
-  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  functionSpaceId String   @map("function_space_id") @db.Uuid
+  eventReference  String?  @map("event_reference")
+  startAt         DateTime @map("start_at") @db.Timestamptz
+  endAt           DateTime @map("end_at") @db.Timestamptz
+  setupType       String?  @map("setup_type")
+  bufferBeforeMin Int      @default(0) @map("buffer_before_minutes")
+  bufferAfterMin  Int      @default(0) @map("buffer_after_minutes")
+  status          String   @default("tentative")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   functionSpace FunctionSpace @relation(fields: [functionSpaceId], references: [id], onDelete: Cascade)
 
@@ -951,19 +1021,19 @@ model Vendor {
 // → Objekat → Restoran/bar | Housekeeping magacin | Spa/retail → Soba (minibar).
 // Mali hotel instancira 2 nivoa, resort/lanac ceo tree.
 model InventoryLocation {
-  id             String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  propertyId     String  @map("property_id") @db.Uuid
+  id               String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  propertyId       String  @map("property_id") @db.Uuid
   parentLocationId String? @map("parent_location_id") @db.Uuid
-  name           String
-  locationType   String  @map("location_type") // warehouse|kitchen|bar|housekeeping|spa_retail|room_minibar
+  name             String
+  locationType     String  @map("location_type") // warehouse|kitchen|bar|housekeeping|spa_retail|room_minibar
 
-  property       Property             @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  parentLocation InventoryLocation?   @relation("LocationTree", fields: [parentLocationId], references: [id])
-  childLocations InventoryLocation[]  @relation("LocationTree")
+  property       Property              @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  parentLocation InventoryLocation?    @relation("LocationTree", fields: [parentLocationId], references: [id])
+  childLocations InventoryLocation[]   @relation("LocationTree")
   stockLevels    StockLevel[]
   receipts       Receipt[]
-  transfersFrom  Transfer[]           @relation("TransferFrom")
-  transfersTo    Transfer[]           @relation("TransferTo")
+  transfersFrom  Transfer[]            @relation("TransferFrom")
+  transfersTo    Transfer[]            @relation("TransferTo")
   depletions     DepletionAdjustment[]
 
   @@index([propertyId], name: "idx_inv_location_property")
@@ -972,18 +1042,18 @@ model InventoryLocation {
 }
 
 model InventoryItem {
-  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  propertyId    String   @map("property_id") @db.Uuid
-  sku           String
-  name          String
-  unit          String   // kg|l|pcs|g|ml...
-  category      String?  // food|beverage|amenity|cleaning|other
-  costPerUnit   Decimal  @default(0) @map("cost_per_unit") @db.Decimal(12, 4)
-  reorderLevel  Decimal? @map("reorder_level") @db.Decimal(10, 3)
-  isActive      Boolean  @default(true) @map("is_active")
-  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  propertyId   String   @map("property_id") @db.Uuid
+  sku          String
+  name         String
+  unit         String // kg|l|pcs|g|ml...
+  category     String? // food|beverage|amenity|cleaning|other
+  costPerUnit  Decimal  @default(0) @map("cost_per_unit") @db.Decimal(12, 4)
+  reorderLevel Decimal? @map("reorder_level") @db.Decimal(10, 3)
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
 
-  property           Property             @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  property           Property              @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   stockLevels        StockLevel[]
   purchaseOrderLines PurchaseOrderLine[]
   receiptLines       ReceiptLine[]
@@ -999,11 +1069,11 @@ model InventoryItem {
 // Denormalizovan tekući saldo po artiklu/lokaciji — osvežava se u istoj
 // transakciji kad se upiše Receipt/Transfer/DepletionAdjustment.
 model StockLevel {
-  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  itemId          String   @map("item_id") @db.Uuid
-  locationId      String   @map("location_id") @db.Uuid
-  quantityOnHand  Decimal  @default(0) @map("quantity_on_hand") @db.Decimal(12, 3)
-  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  itemId         String   @map("item_id") @db.Uuid
+  locationId     String   @map("location_id") @db.Uuid
+  quantityOnHand Decimal  @default(0) @map("quantity_on_hand") @db.Decimal(12, 3)
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   item     InventoryItem     @relation(fields: [itemId], references: [id], onDelete: Cascade)
   location InventoryLocation @relation(fields: [locationId], references: [id], onDelete: Cascade)
@@ -1022,7 +1092,7 @@ model PurchaseOrder {
   expectedDate DateTime? @map("expected_date") @db.Date
   createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
 
-  property Property           @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  property Property            @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   vendor   Vendor              @relation(fields: [vendorId], references: [id])
   lines    PurchaseOrderLine[]
   receipts Receipt[]
@@ -1032,11 +1102,11 @@ model PurchaseOrder {
 }
 
 model PurchaseOrderLine {
-  id               String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  purchaseOrderId  String  @map("purchase_order_id") @db.Uuid
-  itemId           String  @map("item_id") @db.Uuid
-  quantityOrdered  Decimal @map("quantity_ordered") @db.Decimal(10, 3)
-  unitCost         Decimal @map("unit_cost") @db.Decimal(12, 4)
+  id              String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  purchaseOrderId String  @map("purchase_order_id") @db.Uuid
+  itemId          String  @map("item_id") @db.Uuid
+  quantityOrdered Decimal @map("quantity_ordered") @db.Decimal(10, 3)
+  unitCost        Decimal @map("unit_cost") @db.Decimal(12, 4)
 
   purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
   item          InventoryItem @relation(fields: [itemId], references: [id])
@@ -1064,11 +1134,11 @@ model Receipt {
 }
 
 model ReceiptLine {
-  id                String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  receiptId         String  @map("receipt_id") @db.Uuid
-  itemId            String  @map("item_id") @db.Uuid
-  quantityReceived  Decimal @map("quantity_received") @db.Decimal(10, 3)
-  unitCost          Decimal @map("unit_cost") @db.Decimal(12, 4)
+  id               String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  receiptId        String  @map("receipt_id") @db.Uuid
+  itemId           String  @map("item_id") @db.Uuid
+  quantityReceived Decimal @map("quantity_received") @db.Decimal(10, 3)
+  unitCost         Decimal @map("unit_cost") @db.Decimal(12, 4)
 
   receipt Receipt       @relation(fields: [receiptId], references: [id], onDelete: Cascade)
   item    InventoryItem @relation(fields: [itemId], references: [id])
@@ -1118,7 +1188,7 @@ model DepletionAdjustment {
   locationId String   @map("location_id") @db.Uuid
   itemId     String   @map("item_id") @db.Uuid
   quantity   Decimal  @db.Decimal(10, 3)
-  reason     String   // waste|spoilage|theft|other
+  reason     String // waste|spoilage|theft|other
   occurredAt DateTime @default(now()) @map("occurred_at") @db.Timestamptz
   notes      String?
 
