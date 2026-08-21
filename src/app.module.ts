@@ -22,6 +22,9 @@ import { DiningModule } from './modules/dining/dining.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
 import { FinanceModule } from './modules/finance/finance.module';
 import { HrModule } from './modules/hr/hr.module';
+import { SpaModule } from './modules/spa/spa.module';
+import { MiceModule } from './modules/mice/mice.module';
+import { ActivitiesModule } from './modules/activities/activities.module';
 
 @Module({
   imports: [
@@ -43,6 +46,9 @@ import { HrModule } from './modules/hr/hr.module';
     InventoryModule,
     FinanceModule,
     HrModule,
+    SpaModule,
+    MiceModule,
+    ActivitiesModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },
