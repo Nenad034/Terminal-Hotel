@@ -66,6 +66,7 @@ async function main() {
     'rooms:manage',
     'rates:manage',
     'tasks:manage',
+    'dining:manage',
   ];
   const frontDeskRole = await prisma.role.upsert({
     where: { id: '00000000-0000-0000-0000-000000000102' },
