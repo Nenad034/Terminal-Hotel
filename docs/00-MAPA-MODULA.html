@@ -1,0 +1,681 @@
+<title>Terminal Hotel — Mapa modula</title>
+<style>
+:root{
+  --ink:#12161d; --ink-2:#1b212b;
+  --paper:#eef0f4; --paper-2:#ffffff; --surface:#ffffff;
+  --text:#1b212b; --text-dim:#5b6472;
+  --accent:#0f766e; --accent-soft:#d7f0ec;
+  --rule:#d3d8e0;
+  --success:#2f8f5b; --success-bg:#e3f3ea;
+  --warn:#a35b12; --warn-bg:#f7e7d2;
+  --info:#2563a8; --info-bg:#dce8f5;
+  --gray:#6b7280; --gray-bg:#e7e9ed;
+  --shadow: 0 1px 2px rgba(20,24,31,.06), 0 10px 28px rgba(20,24,31,.07);
+  --mono: ui-monospace, "SF Mono", "Cascadia Mono", "Roboto Mono", Consolas, monospace;
+  --sans: "Avenir Next", "Century Gothic", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --header-h: 64px;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --paper:#12161d; --paper-2:#161b23; --surface:#1b212b;
+    --text:#e7e9ed; --text-dim:#98a2b3;
+    --accent:#3ecbb8; --accent-soft:#123330;
+    --rule:#2b3242;
+    --success:#5cd39a; --success-bg:#173023;
+    --warn:#e7a339; --warn-bg:#332411;
+    --info:#7ab6ec; --info-bg:#122a3d;
+    --gray:#8b95a5; --gray-bg:#232a37;
+    --shadow: 0 1px 2px rgba(0,0,0,.45), 0 10px 28px rgba(0,0,0,.4);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#12161d; --paper-2:#161b23; --surface:#1b212b;
+  --text:#e7e9ed; --text-dim:#98a2b3;
+  --accent:#3ecbb8; --accent-soft:#123330;
+  --rule:#2b3242;
+  --success:#5cd39a; --success-bg:#173023;
+  --warn:#e7a339; --warn-bg:#332411;
+  --info:#7ab6ec; --info-bg:#122a3d;
+  --gray:#8b95a5; --gray-bg:#232a37;
+  --shadow: 0 1px 2px rgba(0,0,0,.45), 0 10px 28px rgba(0,0,0,.4);
+  color-scheme: dark;
+}
+:root[data-theme="light"]{
+  --paper:#eef0f4; --paper-2:#ffffff; --surface:#ffffff;
+  --text:#1b212b; --text-dim:#5b6472;
+  --accent:#0f766e; --accent-soft:#d7f0ec;
+  --rule:#d3d8e0;
+  --success:#2f8f5b; --success-bg:#e3f3ea;
+  --warn:#a35b12; --warn-bg:#f7e7d2;
+  --info:#2563a8; --info-bg:#dce8f5;
+  --gray:#6b7280; --gray-bg:#e7e9ed;
+  --shadow: 0 1px 2px rgba(20,24,31,.06), 0 10px 28px rgba(20,24,31,.07);
+  color-scheme: light;
+}
+*{box-sizing:border-box;}
+html, body{ height:100%; }
+body{
+  margin:0; background:var(--paper); color:var(--text);
+  font-family:var(--sans); font-size:15px; line-height:1.5;
+  display:flex; flex-direction:column; height:100vh; overflow:hidden;
+}
+a{color:var(--accent);}
+
+.board{
+  position:fixed; inset:0 0 auto 0; height:var(--header-h); z-index:40;
+  background:linear-gradient(180deg,#171c25,#12161d); color:#eef0f4;
+  display:flex; align-items:center; gap:14px; padding:0 18px;
+  border-bottom:1px solid #05070a; box-shadow:0 2px 0 rgba(0,0,0,.25);
+}
+.board .brand{
+  font-family:var(--mono); font-weight:700; letter-spacing:.14em; font-size:16px;
+  color:#f4f6f9; text-transform:uppercase; display:flex; align-items:baseline; gap:8px; white-space:nowrap;
+}
+.board .brand small{ font-family:var(--sans); font-weight:400; letter-spacing:0; text-transform:none; font-size:12px; color:#9aa6b8; }
+.board .actions{ margin-left:auto; display:flex; gap:10px; align-items:center; }
+.board a.back{ color:#c7ceda; font-size:12.5px; text-decoration:none; border:1px solid #333c4a; padding:6px 10px; border-radius:6px; }
+.board a.back:hover{ background:#1f2530; }
+.wf-btn{
+  font-family:var(--mono); font-size:12px; font-weight:700; letter-spacing:.03em;
+  background:#1f2530; color:#3ecbb8; border:1px solid #3a4356; border-radius:6px;
+  padding:8px 14px; cursor:pointer;
+}
+.wf-btn.active{ background:#3ecbb8; color:#0b1210; border-color:#3ecbb8; }
+
+main{
+  flex:1; min-height:0; display:flex; flex-direction:column;
+  padding-top:calc(var(--header-h) + 16px); padding-bottom:14px;
+}
+.wrap{
+  width:100%; margin:0 auto; padding:0 clamp(16px,2.4vw,40px);
+  flex:1; min-height:0; display:flex; flex-direction:column;
+}
+.intro, .legend, #wfCaption{ flex:none; }
+
+.intro{
+  background:var(--surface); border:1px solid var(--rule); border-radius:10px;
+  padding:16px 20px; margin-bottom:20px; box-shadow:var(--shadow); font-size:14px; color:var(--text-dim);
+}
+.intro b{ color:var(--text); }
+.intro code{ font-family:var(--mono); font-size:12.5px; background:var(--paper); padding:1px 5px; border-radius:4px; }
+#wfCaption{
+  display:none; background:var(--accent-soft); border:1px solid var(--accent); border-radius:10px;
+  padding:14px 20px; margin-bottom:20px; font-size:14px; color:var(--text);
+}
+#wfCaption.show{ display:block; }
+
+.legend{
+  display:flex; flex-wrap:wrap; gap:18px; align-items:center;
+  background:var(--surface); border:1px solid var(--rule); border-radius:10px;
+  padding:12px 18px; margin-bottom:22px; box-shadow:var(--shadow); font-size:12.5px; color:var(--text-dim);
+}
+.legend .item{ display:flex; align-items:center; gap:7px; white-space:nowrap; }
+.legend svg{ display:block; }
+.dot{ width:10px; height:10px; border-radius:50%; display:inline-block; }
+
+.graph-outer{ position:relative; flex:1; min-height:0; overflow:auto; display:flex; }
+.graph{
+  position:relative; display:grid; grid-template-columns:repeat(8, minmax(0, 1fr)); grid-template-rows:auto 1fr;
+  gap:clamp(20px,3vw,44px) clamp(14px,1.8vw,30px);
+  padding:6px clamp(70px,9vw,140px) 16px; width:100%; min-width:1180px; margin:auto 0;
+}
+.col-head{
+  font-family:var(--mono); font-size:clamp(11px,.85vw,13.5px); letter-spacing:.08em; text-transform:uppercase;
+  color:var(--text-dim); text-align:center; padding-bottom:6px; border-bottom:1px dashed var(--rule);
+  grid-row:1;
+}
+.col{ display:flex; flex-direction:column; gap:clamp(22px,2.6vw,42px); grid-row:2; align-items:stretch; justify-content:center; padding-top:8px; }
+
+svg.edges{ position:absolute; top:0; left:0; pointer-events:none; z-index:1; }
+svg.edges path{ opacity:.16; transition:opacity .15s ease; }
+svg.edges path.hi{ opacity:1 !important; stroke-width:2.6; }
+
+.node{
+  position:relative; z-index:2; background:var(--surface); border:1.5px solid var(--rule);
+  border-radius:10px; padding:clamp(10px,1.15vw,18px) clamp(12px,1.3vw,20px); box-shadow:var(--shadow); cursor:pointer;
+  transition:opacity .18s ease, transform .12s ease, border-color .12s ease;
+}
+.node:hover{ transform:translateY(-2px); border-color:var(--accent); }
+.node .top{ display:flex; align-items:center; gap:6px; margin-bottom:4px; }
+.node .code{ font-family:var(--mono); font-weight:800; font-size:clamp(12.5px,1.05vw,16px); color:var(--accent); }
+.node .cel-dot{ width:8px; height:8px; border-radius:50%; flex:0 0 auto; }
+.node .ext, .detail-panel .ext{
+  font-family:var(--mono); font-size:clamp(8.5px,.68vw,10.5px); font-weight:700; letter-spacing:.04em;
+  background:var(--info-bg); color:var(--info); padding:1px 5px; border-radius:3px;
+}
+.node .umb, .detail-panel .umb{
+  font-family:var(--mono); font-size:clamp(8.5px,.68vw,10.5px); font-weight:700; letter-spacing:.02em;
+  background:var(--gray-bg); color:var(--gray); padding:1px 5px; border-radius:3px;
+}
+.detail-panel .ext, .detail-panel .umb{ font-size:10px; padding:2px 6px; }
+.node .title{ font-size:clamp(12.8px,1.05vw,16px); font-weight:600; line-height:1.3; }
+.node .status{ margin-top:6px; display:flex; align-items:center; gap:5px; font-size:clamp(10px,.75vw,12px); color:var(--text-dim); }
+.node .status .dot{ width:7px; height:7px; }
+.node .open-link{
+  position:absolute; top:8px; right:9px; font-size:12px; line-height:1; color:var(--text-dim);
+  text-decoration:none; opacity:.45; padding:2px;
+}
+.node .open-link:hover{ opacity:1; color:var(--accent); }
+
+.graph.dim-mode .node{ opacity:.2; }
+.graph.dim-mode .node.hi{ opacity:1; }
+.graph.dim-mode .node.neighbor{
+  border-color:var(--accent); box-shadow:var(--shadow), 0 0 0 2px var(--accent-soft);
+}
+.graph.dim-mode .node.focused{
+  opacity:1; transform:scale(1.7); z-index:8; border-color:var(--accent); border-width:2px;
+  box-shadow:0 14px 36px rgba(0,0,0,.35), 0 0 0 5px var(--accent-soft);
+}
+.graph.dim-mode .node.focused .title{ font-size:14.5px; }
+.graph.dim-mode path.hi{ opacity:1 !important; stroke-width:2.4; }
+.graph.dim-mode path{ opacity:.06; }
+
+/* ---- detail popup panel ---- */
+.detail-panel{
+  position:fixed; top:calc(var(--header-h) + 16px); right:-380px; bottom:16px; width:340px;
+  background:var(--surface); border:1px solid var(--rule); border-radius:12px;
+  box-shadow:0 18px 44px rgba(0,0,0,.3); z-index:50;
+  transition:right .22s ease; display:flex; flex-direction:column; overflow:hidden;
+}
+.detail-panel.open{ right:16px; }
+.detail-panel .dp-head{
+  padding:16px 18px 12px; border-bottom:1px dashed var(--rule); flex:none;
+}
+.detail-panel .dp-close{
+  position:absolute; top:10px; right:12px; background:none; border:none; cursor:pointer;
+  font-size:18px; color:var(--text-dim); line-height:1;
+}
+.detail-panel .dp-close:hover{ color:var(--accent); }
+.detail-panel .dp-top{ display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+.detail-panel .dp-code{ font-family:var(--mono); font-weight:800; font-size:16px; color:var(--accent); }
+.detail-panel .dp-title{ font-size:17px; font-weight:700; }
+.detail-panel .dp-badges{ display:flex; gap:6px; margin-top:6px; flex-wrap:wrap; }
+.detail-panel .dp-body{ padding:14px 18px 18px; overflow-y:auto; flex:1; font-size:13.5px; color:var(--text); }
+.detail-panel .dp-section{ margin-bottom:16px; }
+.detail-panel .dp-section h4{
+  font-family:var(--mono); font-size:10.5px; letter-spacing:.06em; text-transform:uppercase;
+  color:var(--text-dim); margin:0 0 7px;
+}
+.detail-panel .dp-desc{ line-height:1.5; color:var(--text); }
+.detail-panel .dp-chips{ display:flex; flex-wrap:wrap; gap:6px; }
+.detail-panel .chip{
+  font-family:var(--mono); font-size:11.5px; background:var(--paper); border:1px solid var(--rule);
+  padding:3px 9px; border-radius:5px; color:var(--text);
+}
+.detail-panel .chip.linkable{ cursor:pointer; }
+.detail-panel .chip.linkable:hover{ border-color:var(--accent); color:var(--accent); }
+.detail-panel .dp-entities li{ margin:3px 0; font-family:var(--mono); font-size:12.5px; }
+.detail-panel .dp-open{
+  display:inline-block; margin-top:4px; font-size:12.5px; text-decoration:none; color:var(--accent); font-weight:600;
+}
+@media (max-width:760px){ .detail-panel{ width:calc(100% - 32px); } }
+
+@media (prefers-reduced-motion: reduce){ .node{ transition:none; } .detail-panel{ transition:none; } }
+</style>
+
+<div class="board">
+  <div class="brand">Terminal Hotel <small>Mapa modula i zavisnosti</small></div>
+  <div class="actions">
+    <button class="wf-btn" id="wfBtn">Prikaži tok jednog boravka</button>
+    <a class="back" href="data-model.md" target="_blank" rel="noopener">Model podataka</a>
+    <a class="back" href="architecture.md" target="_blank" rel="noopener">← Arhitektura (32 poglavlja)</a>
+  </div>
+</div>
+
+<main>
+  <div class="wrap">
+    <div class="intro">
+      Svaka kartica je jedan modul iz <b>docs/architecture.md</b>, raspoređen po fazi izgradnje (levo → desno, isti redosled kao poglavlje 32 „Predloženi fazni plan") — taj redosled ostaje netaknut da strelice zavisnosti čitaju levo→desno. Bojena tačka i leva ivica kartice pokazuju kojoj od 7 kontekstualnih celina modul pripada (legenda ispod). <b>Klik na modul</b> ga uveća i jasno istakne sve module sa kojima je direktno povezan (sve ostalo potamni); klik ponovo ili na prazan prostor vraća prikaz. Mala strelica (↗) u uglu kartice otvara odgovarajuće poglavlje u <code>architecture.md</code> u novom tabu. Puna linija = direktna (API) zavisnost; isprekidana linija = Event Bus (asinhroni događaj, bez direktnog poziva). Modul sa oznakom <span class="umb">SVI</span> (M22 — Audit log) čita/upisuje preko svih ostalih modula read/write — pojedinačne linije ka svima nisu iscrtane radi preglednosti. <b>Status</b> (tačka pored naslova) se ažurira ručno kako implementacija napreduje i trenutno odražava stvarno stanje u <code>src/</code> i <code>prisma/schema.prisma</code>, ne samo dokumentaciju.
+    </div>
+    <div id="wfCaption">
+      <b>Tok jednog boravka kroz sistem:</b> gost stiže preko M10 distribucije (ili direktno) → M4 daje cenu i raspoloživost → M2 kreira/potvrđuje rezervaciju (hold→confirmed, ista šema koju koristi i M9 paketizacija) → M3 dodeljuje sobu pri check-inu → tokom boravka M11 (restoran), M16 (spa) i M14 (minibar/pristup) generišu naplate koje sve završavaju na M6 folio-u → M15 fiskalizuje pri check-outu → M8 noćni audit zatvara poslovni dan i hrani M21 finansije i M7 istoriju kapaciteta → M27 šalje anketu za recenziju, M28 knjiži loyalty bodove. Isti tok, bez obzira kroz koji kanal je boravak ušao.
+    </div>
+    <div class="legend">
+      <div class="item"><svg width="30" height="10"><line x1="0" y1="5" x2="30" y2="5" stroke="currentColor" stroke-width="2"/></svg> Direktna (API) zavisnost</div>
+      <div class="item"><svg width="30" height="10"><line x1="0" y1="5" x2="30" y2="5" stroke="currentColor" stroke-width="2" stroke-dasharray="4,3"/></svg> Event Bus</div>
+      <div class="item"><span class="dot" style="background:var(--success)"></span> Završeno — postoji modul/kontroler, testirano uživo</div>
+      <div class="item"><span class="dot" style="background:var(--warn)"></span> Delimično — šema i/ili deo logike postoji, nema pun modul</div>
+      <div class="item"><span class="dot" style="background:var(--gray)"></span> Nije započeto</div>
+      <div class="item"><span class="umb">SVI</span> Read/write preko svih modula</div>
+    </div>
+    <div class="legend" id="celLegend"></div>
+    <div class="graph-outer">
+      <div class="graph" id="graph"></div>
+    </div>
+  </div>
+</main>
+
+<div class="detail-panel" id="detailPanel">
+  <div class="dp-head">
+    <button class="dp-close" id="dpClose" aria-label="Zatvori">×</button>
+    <div class="dp-top"><span class="dp-code" id="dpCode"></span><span class="dp-title" id="dpTitle"></span></div>
+    <div class="dp-badges" id="dpBadges"></div>
+  </div>
+  <div class="dp-body">
+    <div class="dp-section">
+      <h4>Šta radi</h4>
+      <div class="dp-desc" id="dpDesc"></div>
+    </div>
+    <div class="dp-section">
+      <h4>Ključni entiteti</h4>
+      <ul class="dp-entities" id="dpEntities"></ul>
+    </div>
+    <div class="dp-section">
+      <h4>Zavisi od</h4>
+      <div class="dp-chips" id="dpDeps"></div>
+    </div>
+    <div class="dp-section">
+      <h4>Koristi ga / oslanja se na njega</h4>
+      <div class="dp-chips" id="dpUsedBy"></div>
+    </div>
+    <a class="dp-open" id="dpOpen" href="#" target="_blank" rel="noopener">Otvori poglavlje u architecture.md ↗</a>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+
+var DOC_BASE = "architecture.md";
+
+var SPEC_ANCHOR = {
+  m1:"16-multi-tenant-strategija", m2:"3-pms-jezgro", m3:"7-housekeeping-i-održavanje-cmms",
+  m4:"3-pms-jezgro", m5:"17-bezbednost-i-usklađenost", m6:"3-pms-jezgro",
+  m7:"29-kapacitet-i-zauzetost--jedinstven-pregled-preko-svih-resursa", m8:"3-pms-jezgro",
+  m9:"15-paketiranje-putovanja--integracija-sa-aplikacijom-za-letove-i-transfere",
+  m10:"4-distribucija-i-kanali", m11:"5-fb-restorani-i-barovi", m12:"6-nabavka-magacin-inventar",
+  m13:"7-housekeeping-i-održavanje-cmms", m14:"8-kontrola-pristupa-i-iot",
+  m15:"17-bezbednost-i-usklađenost", m16:"9-spa-wellness-gym-bazen", m17:"12-mice-konferencijeeventi",
+  m18:"11-aktivnosti-izleti-i-eksterno-prisustvo-eventima", m19:"10-gostinski-servisi",
+  m20:"19-ljudski-resursi-i-radna-snaga", m21:"21-finansije-i-kpi-izveštavanje",
+  m22:"22-opšti-audit-log-platforme", m23:"23-haccp-i-bezbednost-hrane",
+  m24:"24-nezgode-i-bezbednosni-incidenti", m25:"25-korporativni-ugovori-i-rfp",
+  m26:"26-održivost--esg-izveštavanje", m27:"27-online-reputacija-i-recenzije",
+  m28:"28-booking-engine-i-loyalty-mehanika", m29:"20-offline-rad-front-deska"
+};
+
+var STATUS = {
+  done:    { label:"Završeno",    color:"var(--success)" },
+  partial: { label:"Delimično",   color:"var(--warn)" },
+  planned: { label:"Nije započeto", color:"var(--gray)" }
+};
+
+var PHASES = [
+  {id:"F0", label:"Faza 0"}, {id:"F1", label:"Faza 1"}, {id:"F2", label:"Faza 2"},
+  {id:"F3", label:"Faza 3"}, {id:"F4", label:"Faza 4"}, {id:"F5", label:"Faza 5"},
+  {id:"F6", label:"Faza 6"}, {id:"FX", label:"Trajno"}
+];
+
+// Kontekstualne celine — vizuelna oznaka po modulu (bojena tačka + leva ivica
+// kartice); kolone i dalje idu po fazi izgradnje da strelice ostanu čitljive.
+var CELINE = {
+  g1: {label:"Temelj",                        color:"#64748b"},
+  g2: {label:"Gost i boravak (PMS jezgro)",    color:"#2f6fed"},
+  g3: {label:"Distribucija i paketizacija",    color:"#8b5cf6"},
+  g4: {label:"Operacije objekta",              color:"#14b8a6"},
+  g5: {label:"Zakon, bezbednost i finansije",  color:"#dc4c3f"},
+  g6: {label:"Resort i gostinski sadržaji",    color:"#0891b2"},
+  g7: {label:"Rast, HR i merenje",             color:"#d4a017"}
+};
+
+var NODES = [
+  {id:"m1",  code:"M1",  title:"Core / Identitet",        phase:"F0", cel:"g1", status:"done",
+    desc:"Organizacije, hoteli (Property = koren tenant granice), zaposleni, uloge i JWT autentikacija/RBAC — temelj svih ostalih modula. Token nosi permissions iz Role i unakrsno se proverava sa x-property-id headerom.",
+    entities:["Organization","Property","Employee","Role.permissions[]","JWT access token"]},
+  {id:"m2",  code:"M2",  title:"Rezervacioni engine",     phase:"F1", cel:"g2", status:"done",
+    desc:"Search → Hold → Confirm → Check-in → Check-out tok. State machine od starta uključuje held/expired statuse pripremljene za paketizaciju (M9) bez kasnije migracije šeme.",
+    entities:["Reservation","ReservationStatusEvent","GroupBlock","GroupBlockAllotment"]},
+  {id:"m3",  code:"M3",  title:"Sobe i Housekeeping tabla", phase:"F1", cel:"g2", status:"done",
+    desc:"Tipovi soba, fizičke sobe, real-time housekeeping status (clean/dirty/inspected/pickup) i istorija promena — kanonski OHIP obrazac statusa sobe.",
+    entities:["RoomType","Room","RoomStatusEvent"]},
+  {id:"m4",  code:"M4",  title:"Cene i raspoloživost",    phase:"F1", cel:"g2", status:"done",
+    desc:"Rate grupe/planovi, kalendar cena, provera raspoloživosti (rezervacije + OOO/OOS + group block allotment). Rate plan već nosi corporateAccountId i lastRoomAvailability polja (vidi M25).",
+    entities:["RateGroup","RatePlan","Rate"]},
+  {id:"m5",  code:"M5",  title:"Gost profil / CRM",       phase:"F1", cel:"g2", status:"done",
+    desc:"Profili gostiju sa dedup po emailu unutar organizacije, GDPR pristanak/retencija/anonimizacija kao prvorazredna polja, loyalty tier, istorija boravaka.",
+    entities:["GuestProfile"]},
+  {id:"m6",  code:"M6",  title:"Folio i naplata",         phase:"F1", cel:"g2", status:"done",
+    desc:"Finansijska knjiga po boravku — stavke (charge), storno (void, ne fizičko brisanje), uplate. Mesto gde će se kasnije kačiti fiskalizacija/PCI tokenizacija (M15).",
+    entities:["Folio","FolioLineItem","Payment"]},
+  {id:"m7",  code:"M7",  title:"Kapacitet i zauzetost",   phase:"F1", cel:"g2", status:"done",
+    desc:"Jedinstven read-model dashboard preko soba, restorana, spa-a i kongresnih sala — union upit u vreme čitanja, ne nova baza istine.",
+    entities:["ResourceOccupancySnapshot (read-model)","OccupancySnapshotDaily"]},
+  {id:"m8",  code:"M8",  title:"Pozadinski radnici",      phase:"F1", cel:"g2", status:"done",
+    desc:"TTL sweep (auto-oslobađa held rezervacije posle hold_expires_at) i noćni audit (business date rollover, upisuje OccupancySnapshotDaily; GL JournalEntry iz M21 još nije povezan).",
+    entities:["TTL sweep job","Night audit job"]},
+  {id:"m9",  code:"M9",  title:"Paketizacija — orkestrator ugovor", phase:"F1", cel:"g3", status:"partial", ext:true,
+    desc:"Hotel strana API ugovora (hold/confirm/cancel + TTL sweep) za dynamic packaging je implementirana unutar M2/M8. Sam Package/Trip orkestrator koji povezuje hotel+let+transfer je treća, nezavisna aplikacija van ovog repoa (Terminal Travel/flights app).",
+    entities:["Reservation.external_package_id (planirano polje)","hold_expires_at"]},
+  {id:"m10", code:"M10", title:"Distribucija i kanali",   phase:"F2", cel:"g3", status:"planned",
+    desc:"OTA (Booking Connectivity, Expedia Rapid), GDS (Amadeus, Sabre, Travelport) i kanal menadžer (SiteMinder, RateGain) sinhronizacija raspoloživosti/cena (ARI).",
+    entities:["ChannelMapping (planirano)","AvailabilityAdjustment (planirano)"]},
+  {id:"m11", code:"M11", title:"F&B / POS",               phase:"F2", cel:"g4", status:"planned",
+    desc:"Post-to-room obrazac (Toast Tender-stil) — naplata iz restorana/bara direktno na folio gosta. DiningOutlet/DiningTable već postoje u šemi (seedovani radi M7 dashboarda), ali nema modula za rezervacije stolova ni POS knjiženje.",
+    entities:["DiningOutlet","DiningTable","DiningReservation"]},
+  {id:"m12", code:"M12", title:"Nabavka, magacin, inventar", phase:"F2", cel:"g4", status:"planned",
+    desc:"Item / rekurzivna Location hijerarhija / Vendor / Purchase Order / Receipt (3-way match) / Recipe / Production Batch. Food cost % kao izvedeno polje, ne ručni unos.",
+    entities:["Item (planirano)","Location tree (planirano)","PurchaseOrder (planirano)"]},
+  {id:"m13", code:"M13", title:"CMMS / Održavanje",       phase:"F2", cel:"g4", status:"planned",
+    desc:"Radni nalozi održavanja, često okinuti promenom statusa sobe (sobarica označi kvar → Maintenance Hold → work order event). Task entitet već postoji u šemi (koristi ga i M3), ali nema CMMS modula.",
+    entities:["Task","WorkOrder (planirano)"]},
+  {id:"m14", code:"M14", title:"Kontrola pristupa i IoT", phase:"F3", cel:"g4", status:"planned",
+    desc:"Middleware sloj ka bravama (Salto KS prvi kandidat — javan API), minibar senzorima i energetskom menadžmentu. Obavezna veza sa protivpožarnim sistemom (NFPA 72/101).",
+    entities:["AccessCredential (planirano)","MinibarEvent (planirano)"]},
+  {id:"m15", code:"M15", title:"Usklađenost RS",          phase:"F4", cel:"g5", status:"planned",
+    desc:"Fiskalizacija (L/V-PFR, sinhrono pri naplati), SEF e-Faktura (B2B/B2G, obavezno od 1.4.2026), eTurista (prijava gostiju + boravišna taksa), PCI-DSS tokenizacija, GDPR cascade-delete.",
+    entities:["FiscalDocument (planirano)","SefInvoice (planirano)"]},
+  {id:"m16", code:"M16", title:"Spa, wellness, gym, bazen", phase:"F5", cel:"g6", status:"planned",
+    desc:"Rezervacija termina (multi-resurs), naplata na folio. SpaResource/SpaResourceStatus/Blockout već postoje u šemi (za M7 dashboard), ali nema modula za zakazivanje termina.",
+    entities:["SpaResource","SpaResourceStatus","SpaResourceBlockout"]},
+  {id:"m17", code:"M17", title:"MICE (konferencije/eventi)", phase:"F5", cel:"g6", status:"planned",
+    desc:"Banquet Event Order (BEO) — vezuje salu, catering i naplatu; guestroom block/pattern za grupne rezervacije. FunctionSpace/FunctionSpaceBooking postoje u šemi (M7 dashboard), bez modula za upravljanje eventima.",
+    entities:["FunctionSpace","FunctionSpaceBooking"]},
+  {id:"m18", code:"M18", title:"Aktivnosti i izleti",     phase:"F5", cel:"g6", status:"planned",
+    desc:"Treći tip rezervacije pored sobe — izlet/tura/eksterni event, fulfillment najčešće radi eksterni partner (OCTO/Viator/GetYourGuide). ActivityBooking tabela postoji u šemi, bez modula.",
+    entities:["ActivityBooking"]},
+  {id:"m19", code:"M19", title:"Gostinski servisi",       phase:"F5", cel:"g6", status:"planned",
+    desc:"Messaging, in-room tablet zahtevi i Lost & Found — zajednički Task/Request backbone sa housekeeping-om (M3) i CMMS-om (M13), polje 'poreklo' razlikuje gost- vs. osoblje-inicirano.",
+    entities:["Request/Task (deljeno sa M3/M13)"]},
+  {id:"m20", code:"M20", title:"HR i radna snaga",        phase:"F6", cel:"g7", status:"planned",
+    desc:"Raspored smena, evidencija radnog vremena (pretplata na access-control evente iz M14, ne paralelan hardver), sertifikacije. Shift/TimeClockEvent/StaffCertification već postoje u šemi, bez modula/servisa.",
+    entities:["Shift","TimeClockEvent","StaffCertification"]},
+  {id:"m21", code:"M21", title:"Finansije i KPI",         phase:"F6", cel:"g5", status:"planned",
+    desc:"JournalEntry generisan pri noćnom auditu (M8), GL export adapter, Occupancy%/ADR/RevPAR/GOPPAR formule (USALI/HFTP), STR Global export. JournalEntry tabela postoji u šemi, još se ne upisuje.",
+    entities:["JournalEntry"]},
+  {id:"m22", code:"M22", title:"Audit log platforme",     phase:"F6", cel:"g1", status:"planned", umb:true,
+    desc:"Append-only audit_event tabela sa hash-lancem (tamper-evidence) — svaka mutacija upisuje red u istoj transakciji. PII ostaje van loga (samo guest_profile.id referenca). Tabela postoji u šemi, ništa je još ne piše.",
+    entities:["AuditEvent"]},
+  {id:"m23", code:"M23", title:"HACCP i bezbednost hrane", phase:"F6", cel:"g5", status:"planned",
+    desc:"Sedam principa HACCP (EU 852/2004 čl. 5(2)) — kritični limiti, monitoring, korektivne akcije. HaccpCcpLog/CorrectiveAction postoje u šemi, bez modula.",
+    entities:["HaccpCcpLog","CorrectiveAction"]},
+  {id:"m24", code:"M24", title:"Nezgode i bezbednosni incidenti", phase:"F6", cel:"g5", status:"planned",
+    desc:"Povreda gosta, radna nezgoda, bezbednosni incident — integraciona tačka ka RMIS-u grupe i osiguranju. IncidentReport postoji u šemi, deli CorrectiveAction sa M23.",
+    entities:["IncidentReport","CorrectiveAction (deljeno sa M23)"]},
+  {id:"m25", code:"M25", title:"Korporativni ugovori i RFP", phase:"F6", cel:"g5", status:"partial",
+    desc:"RatePlan već ima corporateAccountId i lastRoomAvailability polja (M4 rates.service), ali nema CorporateAccount CRUD/RFP modula niti LRA override logike u availability engine-u (stop-sell/min-LOS/CTA zaobilaženje).",
+    entities:["CorporateAccount","RatePlan.lastRoomAvailability (već postoji)"]},
+  {id:"m26", code:"M26", title:"ESG / Održivost",         phase:"F6", cel:"g7", status:"planned",
+    desc:"Izveštajni sloj iznad energy-IoT podataka (M14) — Scope 1/2/3 karbon, HCMI standard (karbon po zauzetoj sobi/danu). EsgMetric/Certification postoje u šemi.",
+    entities:["EsgMetric","Certification"]},
+  {id:"m27", code:"M27", title:"Online reputacija i recenzije", phase:"F6", cel:"g7", status:"planned",
+    desc:"Checkout → stay-completion event → automatska anketa/zahtev za recenziju (TrustYou/Revinate obrazac). Koristi postojeći guest_profile.marketing_consent, bez novog consent podsistema.",
+    entities:["(nema sopstvenog entiteta — piše nazad u GuestProfile)"]},
+  {id:"m28", code:"M28", title:"Booking engine i loyalty", phase:"F6", cel:"g7", status:"planned",
+    desc:"Append-only points ledger (earn/redeem/expire/adjust), OR logika kroz više dimenzija za nivoe (noćenja ILI boravci ILI potrošnja), keširan saldo. LoyaltyTier/Transaction/Assignment postoje u šemi.",
+    entities:["LoyaltyPointTransaction","LoyaltyTier","LoyaltyTierAssignment"]},
+  {id:"m29", code:"M29", title:"Offline rad front deska", phase:"FX", cel:"g1", status:"planned",
+    desc:"v1: zakazan izvoz kritičnog stanja (dolasci, otvoreni folio) u lokalni snapshot + ručna procedura. Lokalni cache-node sa eventual sync je dokumentovan kao namerna buduća mogućnost, ne gradi se preventivno.",
+    entities:["(operativna mera, ne novi entitet za v1)"]}
+];
+
+var DEPS = [
+  ["m2","m1"],["m2","m3"],["m2","m4"],["m2","m5"],
+  ["m3","m1"],
+  ["m4","m1"],["m4","m3"],
+  ["m5","m1"],
+  ["m6","m1"],["m6","m2"],
+  ["m7","m3"],["m7","m11"],["m7","m16"],["m7","m17"],
+  ["m8","m2"],["m8","m6"],
+  ["m9","m2"],["m9","m8"],
+  ["m10","m1"],["m10","m3"],["m10","m4"],
+  ["m11","m1"],["m11","m6"],["m11","m12"],
+  ["m12","m1"],
+  ["m13","m1"],["m13","m3"],
+  ["m14","m1"],["m14","m3"],["m14","m20"],
+  ["m15","m1"],["m15","m6"],["m15","m25"],
+  ["m16","m1"],["m16","m5"],["m16","m6"],
+  ["m17","m1"],["m17","m5"],["m17","m6"],["m17","m25"],
+  ["m18","m1"],["m18","m2"],["m18","m6"],
+  ["m19","m1"],["m19","m3"],["m19","m13"],
+  ["m20","m1"],["m20","m3"],["m20","m14"],
+  ["m21","m1"],["m21","m6"],["m21","m7"],["m21","m8"],
+  ["m22","m1"],
+  ["m23","m1"],["m23","m12"],["m23","m14"],
+  ["m24","m1"],["m24","m20"],["m24","m23"],
+  ["m25","m1"],["m25","m4"],
+  ["m26","m1"],["m26","m14"],
+  ["m27","m1"],["m27","m2"],["m27","m5"],
+  ["m28","m1"],["m28","m2"],["m28","m4"],["m28","m5"],
+  ["m29","m1"],["m29","m2"],["m29","m6"]
+];
+
+var EVENTS = [
+  ["m14","m6"],["m6","m3"],["m3","m13"],
+  ["m8","m21"],["m8","m7"],
+  ["m2","m27"],["m2","m28"],
+  ["m12","m11"]
+];
+
+var WORKFLOW = ["m10","m4","m2","m3","m11","m16","m14","m6","m15","m8","m21","m7","m27","m28"];
+
+// ---- build DOM ----
+var graph = document.getElementById("graph");
+
+var celLegend = document.getElementById("celLegend");
+Object.keys(CELINE).forEach(function(k){
+  var c = CELINE[k];
+  var item = document.createElement("div");
+  item.className = "item";
+  item.innerHTML = '<span class="dot" style="background:'+c.color+'"></span> '+c.label;
+  celLegend.appendChild(item);
+});
+
+PHASES.forEach(function(p, i){
+  var h = document.createElement("div");
+  h.className = "col-head";
+  h.style.gridColumn = (i+1);
+  h.textContent = p.label;
+  graph.appendChild(h);
+});
+
+PHASES.forEach(function(p, i){
+  var col = document.createElement("div");
+  col.className = "col";
+  col.style.gridColumn = (i+1);
+  NODES.filter(function(n){ return n.phase === p.id; }).forEach(function(n){
+    var card = document.createElement("div");
+    card.className = "node";
+    card.dataset.id = n.id;
+    var cel = CELINE[n.cel];
+    card.style.borderLeft = "4px solid " + cel.color;
+    var extBadge = n.ext ? '<span class="ext">EKSTERNO</span>' : "";
+    var umbBadge = n.umb ? '<span class="umb">SVI</span>' : "";
+    var celDot = '<span class="cel-dot" style="background:'+cel.color+'" title="Celina: '+cel.label+'"></span>';
+    var st = STATUS[n.status];
+    card.innerHTML =
+      '<a class="open-link" href="'+DOC_BASE+'#'+SPEC_ANCHOR[n.id]+'" target="_blank" rel="noopener" title="Otvori poglavlje u architecture.md">↗</a>'+
+      '<div class="top">'+celDot+'<span class="code">'+n.code+'</span>'+extBadge+umbBadge+'</div>'+
+      '<div class="title">'+n.title+'</div>'+
+      '<div class="status"><span class="dot" style="background:'+st.color+'"></span>'+st.label+'</div>';
+    card.querySelector(".open-link").addEventListener("click", function(ev){ ev.stopPropagation(); });
+    card.addEventListener("click", function(){ toggleFocus(n.id); });
+    col.appendChild(card);
+  });
+  graph.appendChild(col);
+});
+
+var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+svg.setAttribute("class", "edges");
+graph.insertBefore(svg, graph.firstChild);
+
+var defs = document.createElementNS(svg.namespaceURI, "defs");
+["arrow","arrow-hi"].forEach(function(id){
+  var marker = document.createElementNS(svg.namespaceURI, "marker");
+  marker.setAttribute("id", id);
+  marker.setAttribute("markerWidth", "8"); marker.setAttribute("markerHeight", "8");
+  marker.setAttribute("refX", "6"); marker.setAttribute("refY", "3");
+  marker.setAttribute("orient", "auto");
+  var path = document.createElementNS(svg.namespaceURI, "path");
+  path.setAttribute("d", "M0,0 L6,3 L0,6 Z");
+  path.setAttribute("fill", id === "arrow-hi" ? "#3ecbb8" : "currentColor");
+  marker.appendChild(path);
+  defs.appendChild(marker);
+});
+svg.appendChild(defs);
+
+function nodeCenter(id){
+  var el = graph.querySelector('.node[data-id="'+id+'"]');
+  if (!el) return null;
+  var gr = graph.getBoundingClientRect();
+  var r = el.getBoundingClientRect();
+  return { x: r.left - gr.left + r.width/2, y: r.top - gr.top + r.height/2, w:r.width, h:r.height };
+}
+
+function drawEdges(){
+  var gr = graph.getBoundingClientRect();
+  svg.setAttribute("width", graph.scrollWidth);
+  svg.setAttribute("height", graph.scrollHeight);
+  svg.style.width = graph.scrollWidth + "px";
+  svg.style.height = graph.scrollHeight + "px";
+  while (svg.childNodes.length > 1) svg.removeChild(svg.lastChild);
+
+  function addEdge(a, b, dashed){
+    var ca = nodeCenter(a), cb = nodeCenter(b);
+    if (!ca || !cb) return;
+    var sameSide = ca.x < cb.x ? 1 : -1;
+    var x1 = ca.x + (sameSide * ca.w/2 * 0.9), y1 = ca.y;
+    var x2 = cb.x - (sameSide * cb.w/2 * 0.9), y2 = cb.y;
+    var dx = (x2 - x1) * 0.5;
+    var d = "M"+x1+","+y1+" C "+(x1+dx)+","+y1+" "+(x2-dx)+","+y2+" "+x2+","+y2;
+    var path = document.createElementNS(svg.namespaceURI, "path");
+    path.setAttribute("d", d);
+    path.setAttribute("fill", "none");
+    path.setAttribute("stroke", dashed ? "#8b95a5" : "#94a0b4");
+    path.setAttribute("stroke-width", "1.6");
+    if (dashed) path.setAttribute("stroke-dasharray", "5,4");
+    path.setAttribute("marker-end", "url(#arrow)");
+    path.dataset.a = a; path.dataset.b = b;
+    svg.appendChild(path);
+  }
+  DEPS.forEach(function(e){ addEdge(e[0], e[1], false); });
+  EVENTS.forEach(function(e){ addEdge(e[0], e[1], true); });
+}
+
+window.addEventListener("resize", drawEdges);
+window.addEventListener("load", drawEdges);
+setTimeout(drawEdges, 50);
+setTimeout(drawEdges, 400);
+
+function neighborsOf(id){
+  var s = {};
+  DEPS.concat(EVENTS).forEach(function(e){
+    if (e[0] === id) s[e[1]] = true;
+    if (e[1] === id) s[e[0]] = true;
+  });
+  return s;
+}
+
+function clearAll(){
+  graph.classList.remove("dim-mode");
+  graph.querySelectorAll(".node").forEach(function(n){ n.classList.remove("hi","neighbor","focused"); });
+  svg.querySelectorAll("path").forEach(function(p){ p.classList.remove("hi"); });
+  detailPanel.classList.remove("open");
+}
+
+var NODE_BY_ID = {}; NODES.forEach(function(n){ NODE_BY_ID[n.id] = n; });
+
+function dependsOn(id){ return DEPS.filter(function(e){ return e[0] === id; }).map(function(e){ return e[1]; }); }
+function usedBy(id){
+  var out = DEPS.filter(function(e){ return e[1] === id; }).map(function(e){ return e[0]; });
+  EVENTS.forEach(function(e){ if (e[0] === id && out.indexOf(e[1]) === -1) out.push(e[1]); });
+  return out;
+}
+
+var detailPanel = document.getElementById("detailPanel");
+var dpClose = document.getElementById("dpClose");
+
+function chip(id, linkable){
+  var n = NODE_BY_ID[id];
+  if (!n) return "";
+  return '<span class="chip'+(linkable?' linkable':'')+'" data-goto="'+id+'">'+n.code+' · '+n.title+'</span>';
+}
+
+function showDetail(id){
+  var n = NODE_BY_ID[id];
+  document.getElementById("dpCode").textContent = n.code;
+  document.getElementById("dpTitle").textContent = n.title;
+  var cel = CELINE[n.cel];
+  var celBadge = '<span class="ext" style="background:'+cel.color+'22; color:'+cel.color+'">'+cel.label+'</span>';
+  var st = STATUS[n.status];
+  var statusBadge = '<span class="ext" style="background:'+st.color+'22; color:'+st.color+'">'+st.label+'</span>';
+  var badges = celBadge + statusBadge + (n.ext ? '<span class="ext">EKSTERNO</span>' : "") + (n.umb ? '<span class="umb">SVI</span>' : "");
+  document.getElementById("dpBadges").innerHTML = badges;
+  document.getElementById("dpDesc").textContent = n.desc || "";
+  document.getElementById("dpEntities").innerHTML = (n.entities||[]).map(function(e){ return "<li>"+e+"</li>"; }).join("");
+  var deps = dependsOn(id), used = usedBy(id);
+  document.getElementById("dpDeps").innerHTML = deps.length ? deps.map(function(d){ return chip(d, true); }).join("") : '<span class="chip">— (temelj)</span>';
+  document.getElementById("dpUsedBy").innerHTML = used.length ? used.map(function(d){ return chip(d, true); }).join("") : '<span class="chip">—</span>';
+  document.getElementById("dpOpen").href = DOC_BASE + "#" + SPEC_ANCHOR[id];
+  detailPanel.classList.add("open");
+}
+
+detailPanel.addEventListener("click", function(ev){
+  // Zaustavi bubbling ka document-click-outside listeneru ispod: klik na chip
+  // pokreće showDetail(), koji odmah iznova generiše sadržaj panela (pa i sam
+  // kliknuti chip), pa taj element ispadne iz DOM-a usred bubble faze istog
+  // klika — bez stopPropagation, document listener onda pogrešno tumači to
+  // kao klik van panela i odmah zatvori ono što je toggleFocus upravo otvorio.
+  ev.stopPropagation();
+  var c = ev.target.closest(".chip.linkable");
+  if (c) toggleFocus(c.dataset.goto);
+});
+dpClose.addEventListener("click", function(){ focusedId = null; clearAll(); });
+
+// ---- click-to-focus (enlarge clicked module, clearly show its connections + detail popup) ----
+var focusedId = null;
+
+function toggleFocus(id){
+  if (wfActive) { wfActive = false; wfBtn.classList.remove("active"); wfCaption.classList.remove("show"); }
+  if (focusedId === id) { focusedId = null; clearAll(); return; }
+  focusedId = id;
+  var nb = neighborsOf(id);
+  graph.classList.add("dim-mode");
+  graph.querySelectorAll(".node").forEach(function(n){
+    var nid = n.dataset.id;
+    n.classList.toggle("focused", nid === id);
+    n.classList.toggle("neighbor", !!nb[nid] && nid !== id);
+    n.classList.toggle("hi", nid === id || !!nb[nid]);
+  });
+  svg.querySelectorAll("path").forEach(function(p){
+    p.classList.toggle("hi", (p.dataset.a === id || p.dataset.b === id));
+  });
+  var el = graph.querySelector('.node[data-id="'+id+'"]');
+  if (el && el.scrollIntoView) el.scrollIntoView({ behavior:"smooth", inline:"center", block:"nearest" });
+  showDetail(id);
+}
+
+document.addEventListener("click", function(ev){
+  if (!focusedId) return;
+  if (ev.target.closest(".node") || ev.target.closest(".wf-btn") || ev.target.closest(".detail-panel")) return;
+  focusedId = null;
+  clearAll();
+});
+
+// ---- workflow toggle ----
+var wfBtn = document.getElementById("wfBtn");
+var wfCaption = document.getElementById("wfCaption");
+var wfActive = false;
+wfBtn.addEventListener("click", function(){
+  focusedId = null;
+  detailPanel.classList.remove("open");
+  wfActive = !wfActive;
+  wfBtn.classList.toggle("active", wfActive);
+  wfCaption.classList.toggle("show", wfActive);
+  if (wfActive){
+    var set = {}; WORKFLOW.forEach(function(id){ set[id] = true; });
+    graph.classList.add("dim-mode");
+    graph.querySelectorAll(".node").forEach(function(n){
+      n.classList.remove("focused","neighbor");
+      n.classList.toggle("hi", !!set[n.dataset.id]);
+    });
+    svg.querySelectorAll("path").forEach(function(p){
+      p.classList.toggle("hi", set[p.dataset.a] && set[p.dataset.b]);
+    });
+  } else {
+    clearAll();
+  }
+});
+})();
+</script>
