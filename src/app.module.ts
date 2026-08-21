@@ -19,6 +19,7 @@ import { TasksModule } from './modules/tasks/tasks.module';
 import { DiningModule } from './modules/dining/dining.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
 import { FinanceModule } from './modules/finance/finance.module';
+import { HrModule } from './modules/hr/hr.module';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { FinanceModule } from './modules/finance/finance.module';
     DiningModule,
     InventoryModule,
     FinanceModule,
+    HrModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },
