@@ -58,6 +58,13 @@ model Property {
   spaResources         SpaResource[]
   functionSpaces       FunctionSpace[]
   occupancySnapshots   OccupancySnapshotDaily[]
+  vendors              Vendor[]
+  inventoryLocations   InventoryLocation[]
+  inventoryItems       InventoryItem[]
+  purchaseOrders       PurchaseOrder[]
+  transfers            Transfer[]
+  depletionAdjustments DepletionAdjustment[]
+  recipes              Recipe[]
 
   @@index([organizationId], name: "idx_property_org")
   @@map("property")
@@ -914,4 +921,242 @@ model OccupancySnapshotDaily {
   @@unique([propertyId, resourceType, resourceCategory, snapshotDate])
   @@index([propertyId, snapshotDate], name: "idx_occupancy_snapshot_date")
   @@map("occupancy_snapshot_daily")
+}
+
+// ============================================================
+// NABAVKA, MAGACIN, INVENTAR (pogl. 6)
+// Univerzalni transakcioni primitivi: Item, Location (rekurzivno),
+// Vendor, Purchase Order, Receipt (3-way match), Transfer,
+// Depletion/Waste (odvojen tip transakcije), Recipe/BOM.
+// ============================================================
+
+model Vendor {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  propertyId  String   @map("property_id") @db.Uuid
+  name        String
+  contactName String?  @map("contact_name")
+  email       String?
+  phone       String?
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  property       Property        @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  purchaseOrders PurchaseOrder[]
+
+  @@index([propertyId], name: "idx_vendor_property")
+  @@map("vendor")
+}
+
+// Rekurzivna hijerarhija lokacija (pogl. 6): Centralni magacin → Komisarijat
+// → Objekat → Restoran/bar | Housekeeping magacin | Spa/retail → Soba (minibar).
+// Mali hotel instancira 2 nivoa, resort/lanac ceo tree.
+model InventoryLocation {
+  id             String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  propertyId     String  @map("property_id") @db.Uuid
+  parentLocationId String? @map("parent_location_id") @db.Uuid
+  name           String
+  locationType   String  @map("location_type") // warehouse|kitchen|bar|housekeeping|spa_retail|room_minibar
+
+  property       Property             @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  parentLocation InventoryLocation?   @relation("LocationTree", fields: [parentLocationId], references: [id])
+  childLocations InventoryLocation[]  @relation("LocationTree")
+  stockLevels    StockLevel[]
+  receipts       Receipt[]
+  transfersFrom  Transfer[]           @relation("TransferFrom")
+  transfersTo    Transfer[]           @relation("TransferTo")
+  depletions     DepletionAdjustment[]
+
+  @@index([propertyId], name: "idx_inv_location_property")
+  @@index([parentLocationId], name: "idx_inv_location_parent")
+  @@map("inventory_location")
+}
+
+model InventoryItem {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  propertyId    String   @map("property_id") @db.Uuid
+  sku           String
+  name          String
+  unit          String   // kg|l|pcs|g|ml...
+  category      String?  // food|beverage|amenity|cleaning|other
+  costPerUnit   Decimal  @default(0) @map("cost_per_unit") @db.Decimal(12, 4)
+  reorderLevel  Decimal? @map("reorder_level") @db.Decimal(10, 3)
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  property           Property             @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  stockLevels        StockLevel[]
+  purchaseOrderLines PurchaseOrderLine[]
+  receiptLines       ReceiptLine[]
+  transferLines      TransferLine[]
+  depletions         DepletionAdjustment[]
+  recipeIngredients  RecipeIngredient[]
+
+  @@unique([propertyId, sku])
+  @@index([propertyId], name: "idx_inv_item_property")
+  @@map("inventory_item")
+}
+
+// Denormalizovan tekući saldo po artiklu/lokaciji — osvežava se u istoj
+// transakciji kad se upiše Receipt/Transfer/DepletionAdjustment.
+model StockLevel {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  itemId          String   @map("item_id") @db.Uuid
+  locationId      String   @map("location_id") @db.Uuid
+  quantityOnHand  Decimal  @default(0) @map("quantity_on_hand") @db.Decimal(12, 3)
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  item     InventoryItem     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  location InventoryLocation @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@unique([itemId, locationId])
+  @@index([locationId], name: "idx_stock_location")
+  @@map("stock_level")
+}
+
+model PurchaseOrder {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  propertyId   String    @map("property_id") @db.Uuid
+  vendorId     String    @map("vendor_id") @db.Uuid
+  status       String    @default("draft") // draft|submitted|received|cancelled
+  orderDate    DateTime  @default(now()) @map("order_date") @db.Timestamptz
+  expectedDate DateTime? @map("expected_date") @db.Date
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  property Property           @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  vendor   Vendor              @relation(fields: [vendorId], references: [id])
+  lines    PurchaseOrderLine[]
+  receipts Receipt[]
+
+  @@index([propertyId, status], name: "idx_po_property_status")
+  @@map("purchase_order")
+}
+
+model PurchaseOrderLine {
+  id               String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  purchaseOrderId  String  @map("purchase_order_id") @db.Uuid
+  itemId           String  @map("item_id") @db.Uuid
+  quantityOrdered  Decimal @map("quantity_ordered") @db.Decimal(10, 3)
+  unitCost         Decimal @map("unit_cost") @db.Decimal(12, 4)
+
+  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  item          InventoryItem @relation(fields: [itemId], references: [id])
+
+  @@index([purchaseOrderId], name: "idx_po_line_po")
+  @@map("purchase_order_line")
+}
+
+// 3-way match: PO (šta je naručeno) ↔ Receipt (šta je fizički stiglo) ↔
+// Invoice (van obima v1 — GL/SEF adapter, pogl. 17/21). Receipt je izvor
+// istine za trenutnu cenu artikla i za priliv na StockLevel.
+model Receipt {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  purchaseOrderId String?  @map("purchase_order_id") @db.Uuid
+  locationId      String   @map("location_id") @db.Uuid
+  receivedAt      DateTime @default(now()) @map("received_at") @db.Timestamptz
+  receivedBy      String?  @map("received_by") @db.Uuid
+
+  purchaseOrder PurchaseOrder?    @relation(fields: [purchaseOrderId], references: [id])
+  location      InventoryLocation @relation(fields: [locationId], references: [id])
+  lines         ReceiptLine[]
+
+  @@index([locationId], name: "idx_receipt_location")
+  @@map("receipt")
+}
+
+model ReceiptLine {
+  id                String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  receiptId         String  @map("receipt_id") @db.Uuid
+  itemId            String  @map("item_id") @db.Uuid
+  quantityReceived  Decimal @map("quantity_received") @db.Decimal(10, 3)
+  unitCost          Decimal @map("unit_cost") @db.Decimal(12, 4)
+
+  receipt Receipt       @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  item    InventoryItem @relation(fields: [itemId], references: [id])
+
+  @@index([receiptId], name: "idx_receipt_line_receipt")
+  @@map("receipt_line")
+}
+
+// Requisition/Transfer — pomeranje zaliha između dve lokacije (GL cross-charge
+// između cost centara). Odvojen tip transakcije od Receipt/Depletion.
+model Transfer {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  propertyId     String   @map("property_id") @db.Uuid
+  fromLocationId String   @map("from_location_id") @db.Uuid
+  toLocationId   String   @map("to_location_id") @db.Uuid
+  status         String   @default("completed") // requested|completed|cancelled
+  requestedBy    String?  @map("requested_by") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  property     Property          @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  fromLocation InventoryLocation @relation("TransferFrom", fields: [fromLocationId], references: [id])
+  toLocation   InventoryLocation @relation("TransferTo", fields: [toLocationId], references: [id])
+  lines        TransferLine[]
+
+  @@index([propertyId], name: "idx_transfer_property")
+  @@map("transfer")
+}
+
+model TransferLine {
+  id         String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  transferId String  @map("transfer_id") @db.Uuid
+  itemId     String  @map("item_id") @db.Uuid
+  quantity   Decimal @db.Decimal(10, 3)
+
+  transfer Transfer      @relation(fields: [transferId], references: [id], onDelete: Cascade)
+  item     InventoryItem @relation(fields: [itemId], references: [id])
+
+  @@index([transferId], name: "idx_transfer_line_transfer")
+  @@map("transfer_line")
+}
+
+// Odvojen tip transakcije od Transfer (pogl. 6: "ključno za ideal-vs-actual
+// food cost") — otpad, kvar, krađa, ne premeštaj između lokacija.
+model DepletionAdjustment {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  propertyId String   @map("property_id") @db.Uuid
+  locationId String   @map("location_id") @db.Uuid
+  itemId     String   @map("item_id") @db.Uuid
+  quantity   Decimal  @db.Decimal(10, 3)
+  reason     String   // waste|spoilage|theft|other
+  occurredAt DateTime @default(now()) @map("occurred_at") @db.Timestamptz
+  notes      String?
+
+  property Property          @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  location InventoryLocation @relation(fields: [locationId], references: [id])
+  item     InventoryItem     @relation(fields: [itemId], references: [id])
+
+  @@index([propertyId, occurredAt], name: "idx_depletion_property_date")
+  @@map("depletion_adjustment")
+}
+
+// Recipe/BOM — cena porcije se uvek izračunava iz trenutnih costPerUnit
+// sastojaka (izvedeno polje), ne čuva se ručno unet broj.
+model Recipe {
+  id                    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  propertyId            String   @map("property_id") @db.Uuid
+  name                  String
+  yieldQuantity         Decimal  @default(1) @map("yield_quantity") @db.Decimal(10, 3)
+  yieldUnit             String   @default("portion") @map("yield_unit")
+  targetFoodCostPercent Decimal? @map("target_food_cost_percent") @db.Decimal(5, 4)
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  property    Property           @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  ingredients RecipeIngredient[]
+
+  @@index([propertyId], name: "idx_recipe_property")
+  @@map("recipe")
+}
+
+model RecipeIngredient {
+  id       String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  recipeId String  @map("recipe_id") @db.Uuid
+  itemId   String  @map("item_id") @db.Uuid
+  quantity Decimal @db.Decimal(10, 3)
+
+  recipe Recipe        @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  item   InventoryItem @relation(fields: [itemId], references: [id])
+
+  @@index([recipeId], name: "idx_recipe_ingredient_recipe")
+  @@map("recipe_ingredient")
 }

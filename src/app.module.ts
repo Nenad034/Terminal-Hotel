@@ -17,6 +17,7 @@ import { CapacityModule } from './modules/capacity/capacity.module';
 import { WorkersModule } from './modules/workers/workers.module';
 import { TasksModule } from './modules/tasks/tasks.module';
 import { DiningModule } from './modules/dining/dining.module';
+import { InventoryModule } from './modules/inventory/inventory.module';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { DiningModule } from './modules/dining/dining.module';
     WorkersModule,
     TasksModule,
     DiningModule,
+    InventoryModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },
