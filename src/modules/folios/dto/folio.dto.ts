@@ -5,9 +5,9 @@ import {
   IsNumber,
   IsISO8601,
   IsIn,
-  IsUUID,
   Min,
 } from 'class-validator';
+import { IsUuidLoose } from '../../../common/validators/is-uuid-loose';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class AddChargeDto {
@@ -42,7 +42,7 @@ export class AddChargeDto {
 
   @ApiPropertyOptional({ description: 'UUID zaposlenog koji knjiži' })
   @IsOptional()
-  @IsUUID()
+  @IsUuidLoose()
   postedBy?: string;
 }
 
@@ -76,7 +76,7 @@ export class AddPaymentDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsUUID()
+  @IsUuidLoose()
   postedBy?: string;
 }
 

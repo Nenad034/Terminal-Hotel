@@ -5,13 +5,13 @@ import {
   IsBoolean,
   IsNumber,
   IsIn,
-  IsUUID,
   IsEmail,
   IsArray,
   ValidateNested,
   Min,
   ArrayMinSize,
 } from 'class-validator';
+import { IsUuidLoose } from '../../../common/validators/is-uuid-loose';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -57,7 +57,7 @@ export class CreateLocationDto {
 
   @ApiPropertyOptional({ description: 'UUID roditeljske lokacije (rekurzivna hijerarhija)' })
   @IsOptional()
-  @IsUUID()
+  @IsUuidLoose()
   parentLocationId?: string;
 }
 
@@ -95,7 +95,7 @@ export class CreateItemDto {
 
 export class PurchaseOrderLineDto {
   @ApiProperty()
-  @IsUUID()
+  @IsUuidLoose()
   itemId: string;
 
   @ApiProperty({ example: 50 })
@@ -111,7 +111,7 @@ export class PurchaseOrderLineDto {
 
 export class CreatePurchaseOrderDto {
   @ApiProperty()
-  @IsUUID()
+  @IsUuidLoose()
   vendorId: string;
 
   @ApiPropertyOptional({ example: '2026-09-05' })
@@ -137,7 +137,7 @@ export class UpdatePurchaseOrderStatusDto {
 
 export class ReceiptLineDto {
   @ApiProperty()
-  @IsUUID()
+  @IsUuidLoose()
   itemId: string;
 
   @ApiProperty({ example: 50 })
@@ -154,16 +154,16 @@ export class ReceiptLineDto {
 export class CreateReceiptDto {
   @ApiPropertyOptional({ description: 'UUID narudžbenice (izostavi za direktan prijem bez PO)' })
   @IsOptional()
-  @IsUUID()
+  @IsUuidLoose()
   purchaseOrderId?: string;
 
   @ApiProperty({ description: 'UUID lokacije na koju se roba prima' })
-  @IsUUID()
+  @IsUuidLoose()
   locationId: string;
 
   @ApiPropertyOptional({ description: 'UUID zaposlenog koji prima robu' })
   @IsOptional()
-  @IsUUID()
+  @IsUuidLoose()
   receivedBy?: string;
 
   @ApiProperty({ type: [ReceiptLineDto] })
@@ -178,7 +178,7 @@ export class CreateReceiptDto {
 
 export class TransferLineDto {
   @ApiProperty()
-  @IsUUID()
+  @IsUuidLoose()
   itemId: string;
 
   @ApiProperty({ example: 5 })
@@ -189,16 +189,16 @@ export class TransferLineDto {
 
 export class CreateTransferDto {
   @ApiProperty()
-  @IsUUID()
+  @IsUuidLoose()
   fromLocationId: string;
 
   @ApiProperty()
-  @IsUUID()
+  @IsUuidLoose()
   toLocationId: string;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsUUID()
+  @IsUuidLoose()
   requestedBy?: string;
 
   @ApiProperty({ type: [TransferLineDto] })
@@ -213,11 +213,11 @@ export class CreateTransferDto {
 
 export class CreateDepletionDto {
   @ApiProperty()
-  @IsUUID()
+  @IsUuidLoose()
   locationId: string;
 
   @ApiProperty()
-  @IsUUID()
+  @IsUuidLoose()
   itemId: string;
 
   @ApiProperty({ example: 2.5 })
@@ -239,7 +239,7 @@ export class CreateDepletionDto {
 
 export class RecipeIngredientDto {
   @ApiProperty()
-  @IsUUID()
+  @IsUuidLoose()
   itemId: string;
 
   @ApiProperty({ example: 0.2 })

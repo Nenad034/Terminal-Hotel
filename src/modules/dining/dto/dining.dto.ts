@@ -4,11 +4,11 @@ import {
   IsOptional,
   IsInt,
   IsIn,
-  IsUUID,
   IsISO8601,
   IsNumber,
   Min,
 } from 'class-validator';
+import { IsUuidLoose } from '../../../common/validators/is-uuid-loose';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export const OUTLET_TYPES = ['restaurant', 'bar'];
@@ -55,12 +55,12 @@ export class UpdateTableStatusDto {
 export class CreateDiningReservationDto {
   @ApiPropertyOptional({ description: 'UUID stola — ostavi prazno za walk-in bez dodele stola' })
   @IsOptional()
-  @IsUUID()
+  @IsUuidLoose()
   tableId?: string;
 
   @ApiPropertyOptional({ description: 'UUID gosta (opciono, walk-in nema profil)' })
   @IsOptional()
-  @IsUUID()
+  @IsUuidLoose()
   guestProfileId?: string;
 
   @ApiProperty({ example: 4 })
@@ -113,6 +113,6 @@ export class PostToRoomDto {
 
   @ApiPropertyOptional({ description: 'UUID zaposlenog (konobar/kasir) koji knjiži' })
   @IsOptional()
-  @IsUUID()
+  @IsUuidLoose()
   postedBy?: string;
 }

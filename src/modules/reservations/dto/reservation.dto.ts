@@ -5,19 +5,19 @@ import {
   IsISO8601,
   IsInt,
   IsIn,
-  IsUUID,
   Min,
   Max,
 } from 'class-validator';
+import { IsUuidLoose } from '../../../common/validators/is-uuid-loose';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class HoldReservationDto {
   @ApiProperty({ description: 'UUID gosta' })
-  @IsUUID()
+  @IsUuidLoose()
   primaryGuestId: string;
 
   @ApiProperty({ description: 'UUID tipa sobe' })
-  @IsUUID()
+  @IsUuidLoose()
   roomTypeId: string;
 
   @ApiProperty({ example: '2026-09-01' })
@@ -42,7 +42,7 @@ export class HoldReservationDto {
 
   @ApiPropertyOptional({ description: 'UUID rate plana' })
   @IsOptional()
-  @IsUUID()
+  @IsUuidLoose()
   ratePlanId?: string;
 
   @ApiPropertyOptional({
@@ -83,7 +83,7 @@ export class HoldReservationDto {
 export class ConfirmReservationDto {
   @ApiPropertyOptional({ description: 'ID zaposlenog koji potvrđuje (recepcija)' })
   @IsOptional()
-  @IsUUID()
+  @IsUuidLoose()
   actorEmployeeId?: string;
 }
 
@@ -95,26 +95,26 @@ export class CancelReservationDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsUUID()
+  @IsUuidLoose()
   actorEmployeeId?: string;
 }
 
 export class CheckInDto {
   @ApiPropertyOptional({ description: 'UUID fizičke sobe koja se dodeljuje gostu' })
   @IsOptional()
-  @IsUUID()
+  @IsUuidLoose()
   roomId?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsUUID()
+  @IsUuidLoose()
   actorEmployeeId?: string;
 }
 
 export class CheckOutDto {
   @ApiPropertyOptional()
   @IsOptional()
-  @IsUUID()
+  @IsUuidLoose()
   actorEmployeeId?: string;
 }
 

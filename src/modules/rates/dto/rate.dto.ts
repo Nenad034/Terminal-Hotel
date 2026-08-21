@@ -4,13 +4,13 @@ import {
   IsOptional,
   IsBoolean,
   IsInt,
-  IsUUID,
   IsISO8601,
   IsNumber,
   Min,
   IsArray,
   ValidateNested,
 } from 'class-validator';
+import { IsUuidLoose } from '../../../common/validators/is-uuid-loose';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -72,18 +72,18 @@ export class CreateRatePlanDto {
 
   @ApiPropertyOptional({ description: 'UUID rate grupe' })
   @IsOptional()
-  @IsUUID()
+  @IsUuidLoose()
   rateGroupId?: string;
 
   @ApiPropertyOptional({ description: 'UUID korporativnog naloga' })
   @IsOptional()
-  @IsUUID()
+  @IsUuidLoose()
   corporateAccountId?: string;
 }
 
 export class RateEntryDto {
   @ApiProperty({ description: 'UUID tipa sobe' })
-  @IsUUID()
+  @IsUuidLoose()
   roomTypeId: string;
 
   @ApiProperty({ example: '2026-09-01', description: 'Datum boravka (YYYY-MM-DD)' })
@@ -109,7 +109,7 @@ export class RateEntryDto {
 
 export class BulkUpdateRatesDto {
   @ApiProperty({ description: 'UUID rate plana' })
-  @IsUUID()
+  @IsUuidLoose()
   ratePlanId: string;
 
   @ApiProperty({ type: [RateEntryDto] })
@@ -130,12 +130,12 @@ export class RateCalendarQueryDto {
 
   @ApiPropertyOptional({ description: 'Filtriranje po UUID tipa sobe' })
   @IsOptional()
-  @IsUUID()
+  @IsUuidLoose()
   roomTypeId?: string;
 
   @ApiPropertyOptional({ description: 'Filtriranje po UUID rate plana' })
   @IsOptional()
-  @IsUUID()
+  @IsUuidLoose()
   ratePlanId?: string;
 }
 

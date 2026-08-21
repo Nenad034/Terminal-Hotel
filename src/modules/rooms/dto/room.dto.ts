@@ -5,10 +5,10 @@ import {
   IsBoolean,
   IsInt,
   IsIn,
-  IsUUID,
   Min,
   Max,
 } from 'class-validator';
+import { IsUuidLoose } from '../../../common/validators/is-uuid-loose';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateRoomTypeDto {
@@ -58,7 +58,7 @@ export class CreateRoomDto {
   floor?: string;
 
   @ApiProperty({ description: 'UUID tipa sobe' })
-  @IsUUID()
+  @IsUuidLoose()
   roomTypeId: string;
 }
 
@@ -85,7 +85,7 @@ export class UpdateRoomStatusDto {
 
   @ApiPropertyOptional({ description: 'ID zaposlenog koji menja status' })
   @IsOptional()
-  @IsUUID()
+  @IsUuidLoose()
   changedBy?: string;
 }
 
@@ -107,6 +107,6 @@ export class RoomFilterDto {
 
   @ApiPropertyOptional({ description: 'UUID tipa sobe' })
   @IsOptional()
-  @IsUUID()
+  @IsUuidLoose()
   roomTypeId?: string;
 }

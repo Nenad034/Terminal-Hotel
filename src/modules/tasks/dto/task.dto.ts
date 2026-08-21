@@ -3,9 +3,9 @@ import {
   IsNotEmpty,
   IsOptional,
   IsIn,
-  IsUUID,
   IsDateString,
 } from 'class-validator';
+import { IsUuidLoose } from '../../../common/validators/is-uuid-loose';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export const TASK_TYPES = ['housekeeping', 'maintenance', 'guest_request', 'lost_found', 'other'];
@@ -34,17 +34,17 @@ export class CreateTaskDto {
 
   @ApiPropertyOptional({ description: 'UUID sobe na koju se zadatak odnosi' })
   @IsOptional()
-  @IsUUID()
+  @IsUuidLoose()
   roomId?: string;
 
   @ApiPropertyOptional({ description: 'UUID rezervacije (za goste-inicirane zahteve)' })
   @IsOptional()
-  @IsUUID()
+  @IsUuidLoose()
   reservationId?: string;
 
   @ApiPropertyOptional({ description: 'UUID zaposlenog kome se odmah dodeljuje zadatak' })
   @IsOptional()
-  @IsUUID()
+  @IsUuidLoose()
   assignedTo?: string;
 
   @ApiPropertyOptional()
@@ -66,7 +66,7 @@ export class UpdateTaskDto {
 
   @ApiPropertyOptional({ description: 'UUID zaposlenog — dodela ili predaja zadatka' })
   @IsOptional()
-  @IsUUID()
+  @IsUuidLoose()
   assignedTo?: string;
 
   @ApiPropertyOptional()
@@ -93,12 +93,12 @@ export class TaskFilterDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsUUID()
+  @IsUuidLoose()
   roomId?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsUUID()
+  @IsUuidLoose()
   assignedTo?: string;
 
   @ApiPropertyOptional({ enum: TASK_PRIORITIES })
