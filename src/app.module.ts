@@ -27,6 +27,9 @@ import { MiceModule } from './modules/mice/mice.module';
 import { ActivitiesModule } from './modules/activities/activities.module';
 import { ComplianceModule } from './modules/compliance/compliance.module';
 import { CorporateModule } from './modules/corporate/corporate.module';
+import { EsgModule } from './modules/esg/esg.module';
+import { ReviewsModule } from './modules/reviews/reviews.module';
+import { LoyaltyModule } from './modules/loyalty/loyalty.module';
 
 @Module({
   imports: [
@@ -53,6 +56,9 @@ import { CorporateModule } from './modules/corporate/corporate.module';
     ActivitiesModule,
     ComplianceModule,
     CorporateModule,
+    EsgModule,
+    ReviewsModule,
+    LoyaltyModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },
