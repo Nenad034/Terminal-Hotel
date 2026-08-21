@@ -2,6 +2,7 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../database/prisma.service';
+import { AuditService } from '../audit/audit.service';
 import { LoginDto } from './dto/login.dto';
 
 export interface JwtPayload {
@@ -17,9 +18,15 @@ export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
+    private readonly auditService: AuditService,
   ) {}
 
   async login(dto: LoginDto) {
+    const property = await this.prisma.property.findUnique({
+      where: { id: dto.propertyId },
+      select: { organizationId: true },
+    });
+
     const employee = await this.prisma.employee.findUnique({
       where: {
         uq_employee_property_email: {
@@ -30,12 +37,24 @@ export class AuthService {
       include: { role: true },
     });
 
-    if (!employee || !employee.isActive) {
-      throw new UnauthorizedException('Pogrešan email ili lozinka.');
-    }
+    const passwordMatches =
+      employee && (await bcrypt.compare(dto.password, employee.passwordHash).catch(() => false));
 
-    const passwordMatches = await bcrypt.compare(dto.password, employee.passwordHash);
-    if (!passwordMatches) {
+    if (!employee || !employee.isActive || !passwordMatches) {
+      // SOC 2 minimum (pogl. 22): autentikacija se loguje i kad ne uspe —
+      // bez employeeId ako korisnik ne postoji, radi bezbednosnog nadzora.
+      if (property) {
+        await this.auditService.record({
+          organizationId: property.organizationId,
+          propertyId: dto.propertyId,
+          actorEmployeeId: employee?.id ?? null,
+          actorType: 'employee',
+          action: 'Auth.loginFailed',
+          resourceType: 'Employee',
+          resourceId: employee?.id ?? null,
+          metadata: { email: dto.email },
+        });
+      }
       throw new UnauthorizedException('Pogrešan email ili lozinka.');
     }
 
@@ -52,6 +71,18 @@ export class AuthService {
     };
 
     const accessToken = await this.jwtService.signAsync(payload);
+
+    if (property) {
+      await this.auditService.record({
+        organizationId: property.organizationId,
+        propertyId: dto.propertyId,
+        actorEmployeeId: employee.id,
+        actorType: 'employee',
+        action: 'Auth.loginSuccess',
+        resourceType: 'Employee',
+        resourceId: employee.id,
+      });
+    }
 
     return {
       accessToken,

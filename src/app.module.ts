@@ -1,12 +1,14 @@
 import { Module, MiddlewareConsumer, NestModule, RequestMethod } from '@nestjs/common';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { DatabaseModule } from './database/database.module';
 import { TenantMiddleware } from './common/middleware/tenant.middleware';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { PermissionsGuard } from './common/guards/permissions.guard';
+import { AuditLogInterceptor } from './common/interceptors/audit-log.interceptor';
 import { AuthModule } from './modules/auth/auth.module';
+import { AuditModule } from './modules/audit/audit.module';
 import { PropertiesModule } from './modules/properties/properties.module';
 import { RoomsModule } from './modules/rooms/rooms.module';
 import { RatesModule } from './modules/rates/rates.module';
@@ -27,6 +29,7 @@ import { HrModule } from './modules/hr/hr.module';
     ScheduleModule.forRoot(),
     DatabaseModule,
     AuthModule,
+    AuditModule,
     PropertiesModule,
     RoomsModule,
     RatesModule,
@@ -44,6 +47,7 @@ import { HrModule } from './modules/hr/hr.module';
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: PermissionsGuard },
+    { provide: APP_INTERCEPTOR, useClass: AuditLogInterceptor },
   ],
 })
 export class AppModule implements NestModule {
