@@ -8,6 +8,7 @@ import {
   AvailabilityQueryDto,
 } from './dto/rate.dto';
 import { PropertyId } from '../../common/decorators/tenant.decorator';
+import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 
 @ApiTags('Rates')
 @ApiSecurity('property-context')
@@ -16,6 +17,7 @@ export class RatesController {
   constructor(private readonly ratesService: RatesService) {}
 
   @Post('rate-plans')
+  @RequirePermissions('rates:manage')
   @ApiOperation({ summary: 'Kreiraj rate plan (cenovnik)' })
   createRatePlan(@PropertyId() propertyId: string, @Body() dto: CreateRatePlanDto) {
     return this.ratesService.createRatePlan(propertyId, dto);
@@ -34,6 +36,7 @@ export class RatesController {
   }
 
   @Post('rates/bulk-update')
+  @RequirePermissions('rates:manage')
   @ApiOperation({
     summary: 'Masovno ažuriranje cena (rate calendar)',
     description:

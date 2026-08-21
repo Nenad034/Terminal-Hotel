@@ -7,26 +7,31 @@ import {
   UpdatePropertyDto,
 } from './dto/property.dto';
 import { PropertyId } from '../../common/decorators/tenant.decorator';
+import { Public } from '../../common/decorators/public.decorator';
+import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 
 @ApiTags('Properties & Rooms')
 @Controller()
 export class PropertiesController {
   constructor(private readonly propertiesService: PropertiesService) {}
 
-  // ─── Organizations ─────────────────────────────────────────────────────────
+  // ─── Organizations (bootstrap — prethodi postojanju bilo kog zaposlenog) ───
 
+  @Public()
   @Post('organizations')
   @ApiOperation({ summary: 'Kreiraj organizaciju (lanac / vlasnik)' })
   createOrganization(@Body() dto: CreateOrganizationDto) {
     return this.propertiesService.createOrganization(dto);
   }
 
+  @Public()
   @Get('organizations')
   @ApiOperation({ summary: 'Lista svih organizacija' })
   findAllOrganizations() {
     return this.propertiesService.findAllOrganizations();
   }
 
+  @Public()
   @Get('organizations/:id')
   @ApiOperation({ summary: 'Detalji organizacije sa listom objekata' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
@@ -34,6 +39,7 @@ export class PropertiesController {
     return this.propertiesService.findOrganizationById(id);
   }
 
+  @Public()
   @Post('organizations/:organizationId/properties')
   @ApiOperation({ summary: 'Kreiraj hotel u okviru organizacije' })
   @ApiParam({ name: 'organizationId', type: 'string', format: 'uuid' })
@@ -44,6 +50,7 @@ export class PropertiesController {
     return this.propertiesService.createProperty(organizationId, dto);
   }
 
+  @Public()
   @Get('organizations/:organizationId/properties')
   @ApiOperation({ summary: 'Lista svih hotela u organizaciji' })
   findPropertiesByOrg(@Param('organizationId') organizationId: string) {
@@ -59,6 +66,7 @@ export class PropertiesController {
   }
 
   @Patch('properties/me')
+  @RequirePermissions('properties:manage')
   @ApiOperation({ summary: 'Ažuriraj podatke trenutnog objekta' })
   updateProperty(@PropertyId() propertyId: string, @Body() dto: UpdatePropertyDto) {
     return this.propertiesService.updateProperty(propertyId, dto);

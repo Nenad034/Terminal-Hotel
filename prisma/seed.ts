@@ -6,8 +6,10 @@
  */
 
 import { PrismaClient } from '@prisma/client';
+import * as bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient({ log: ['warn', 'error'] });
+const DEMO_PASSWORD = 'Terminal123!';
 
 async function main() {
   console.log('🌱 Seed: krenulo...');
@@ -42,6 +44,95 @@ async function main() {
     },
   });
   console.log(`  ✓ Hotel: ${property.name} (${property.id})`);
+
+  // ── Uloge i zaposleni (za JWT login) ─────────────────────────────────────────
+  const passwordHash = await bcrypt.hash(DEMO_PASSWORD, 10);
+
+  const managerRole = await prisma.role.upsert({
+    where: { id: '00000000-0000-0000-0000-000000000101' },
+    update: { permissions: ['*'] },
+    create: {
+      id: '00000000-0000-0000-0000-000000000101',
+      propertyId: property.id,
+      name: 'Manager',
+      permissions: ['*'],
+    },
+  });
+
+  const frontDeskRole = await prisma.role.upsert({
+    where: { id: '00000000-0000-0000-0000-000000000102' },
+    update: {},
+    create: {
+      id: '00000000-0000-0000-0000-000000000102',
+      propertyId: property.id,
+      name: 'Front Desk Agent',
+      permissions: [
+        'reservations:manage',
+        'guests:manage',
+        'folios:manage',
+        'rooms:manage',
+        'rates:manage',
+      ],
+    },
+  });
+
+  const housekeepingRole = await prisma.role.upsert({
+    where: { id: '00000000-0000-0000-0000-000000000103' },
+    update: {},
+    create: {
+      id: '00000000-0000-0000-0000-000000000103',
+      propertyId: property.id,
+      name: 'Housekeeping',
+      permissions: ['rooms:manage'],
+    },
+  });
+
+  await prisma.employee.upsert({
+    where: {
+      uq_employee_property_email: { propertyId: property.id, email: 'menadzer@grandhotel.rs' },
+    },
+    update: { passwordHash },
+    create: {
+      propertyId: property.id,
+      roleId: managerRole.id,
+      firstName: 'Marko',
+      lastName: 'Jovanović',
+      email: 'menadzer@grandhotel.rs',
+      passwordHash,
+    },
+  });
+
+  await prisma.employee.upsert({
+    where: {
+      uq_employee_property_email: { propertyId: property.id, email: 'recepcija@grandhotel.rs' },
+    },
+    update: { passwordHash },
+    create: {
+      propertyId: property.id,
+      roleId: frontDeskRole.id,
+      firstName: 'Ana',
+      lastName: 'Petrović',
+      email: 'recepcija@grandhotel.rs',
+      passwordHash,
+    },
+  });
+
+  await prisma.employee.upsert({
+    where: {
+      uq_employee_property_email: { propertyId: property.id, email: 'domacinstvo@grandhotel.rs' },
+    },
+    update: { passwordHash },
+    create: {
+      propertyId: property.id,
+      roleId: housekeepingRole.id,
+      firstName: 'Jovana',
+      lastName: 'Simić',
+      email: 'domacinstvo@grandhotel.rs',
+      passwordHash,
+    },
+  });
+  console.log(`  ✓ Uloge: Manager, Front Desk Agent, Housekeeping`);
+  console.log(`  ✓ Zaposleni: 3 naloga kreirana (lozinka za sve: ${DEMO_PASSWORD})`);
 
   // ── Tipovi soba ─────────────────────────────────────────────────────────────
   const roomTypes = await Promise.all([
@@ -323,7 +414,11 @@ async function main() {
   console.log(`  Deluxe King RT:      ${roomTypes[1].id}`);
   console.log(`  Junior Suite RT:     ${roomTypes[2].id}`);
   console.log(`  BAR Rate Plan:       ${barPlan.id}`);
-  console.log(`\n  Swagger UI: http://localhost:3000/api/docs`);
+  console.log(`\n  Prijava (POST /api/v1/auth/login):`);
+  console.log(`    propertyId: ${property.id}`);
+  console.log(`    email: menadzer@grandhotel.rs | recepcija@grandhotel.rs | domacinstvo@grandhotel.rs`);
+  console.log(`    password: ${DEMO_PASSWORD}`);
+  console.log(`\n  Swagger UI: http://localhost:3010/api/docs`);
   console.log(`  x-property-id header: ${property.id}`);
 }
 

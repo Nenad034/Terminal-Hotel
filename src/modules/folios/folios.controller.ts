@@ -3,6 +3,7 @@ import { ApiTags, ApiOperation, ApiSecurity, ApiParam } from '@nestjs/swagger';
 import { FoliosService } from './folios.service';
 import { AddChargeDto, AddPaymentDto, VoidChargeDto } from './dto/folio.dto';
 import { PropertyId } from '../../common/decorators/tenant.decorator';
+import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 
 @ApiTags('Folios')
 @ApiSecurity('property-context')
@@ -21,6 +22,7 @@ export class FoliosController {
   }
 
   @Post('folios/:folioId/charges')
+  @RequirePermissions('folios:manage')
   @ApiOperation({
     summary: 'Dodaj stavku na folio (noćenje, minibar, room service, itd.)',
   })
@@ -34,6 +36,7 @@ export class FoliosController {
   }
 
   @Delete('folios/:folioId/charges/:lineItemId')
+  @RequirePermissions('folios:manage')
   @ApiOperation({ summary: 'Storniraj stavku (void) — ne briše zapis, samo označava kao stornan' })
   @ApiParam({ name: 'folioId', type: 'string', format: 'uuid' })
   @ApiParam({ name: 'lineItemId', type: 'string', format: 'uuid' })
@@ -47,6 +50,7 @@ export class FoliosController {
   }
 
   @Post('folios/:folioId/payments')
+  @RequirePermissions('folios:manage')
   @ApiOperation({ summary: 'Evidentiraj uplatu — gotovina, kartica, paket operater' })
   @ApiParam({ name: 'folioId', type: 'string', format: 'uuid' })
   addPayment(

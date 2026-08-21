@@ -17,6 +17,7 @@ import {
   ReservationListQueryDto,
 } from './dto/reservation.dto';
 import { PropertyId } from '../../common/decorators/tenant.decorator';
+import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 
 @ApiTags('Reservations')
 @ApiSecurity('property-context')
@@ -36,6 +37,7 @@ export class ReservationsController {
   }
 
   @Post('hold')
+  @RequirePermissions('reservations:manage')
   @ApiOperation({
     summary: 'Drži kapacitet (Hold) — Korak 1 rezervacionog toka',
     description:
@@ -67,6 +69,7 @@ export class ReservationsController {
   }
 
   @Post(':id/confirm')
+  @RequirePermissions('reservations:manage')
   @ApiOperation({
     summary: 'Potvrdi rezervaciju — Korak 2 (held → confirmed / booked → confirmed)',
   })
@@ -80,6 +83,7 @@ export class ReservationsController {
   }
 
   @Post(':id/cancel')
+  @RequirePermissions('reservations:manage')
   @ApiOperation({ summary: 'Otkaži rezervaciju' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   cancelReservation(
@@ -91,6 +95,7 @@ export class ReservationsController {
   }
 
   @Post(':id/check-in')
+  @RequirePermissions('reservations:manage')
   @ApiOperation({
     summary: 'Check-in gosta — dodela sobe, promena statusa sobe u occupied',
     description:
@@ -107,6 +112,7 @@ export class ReservationsController {
   }
 
   @Post(':id/check-out')
+  @RequirePermissions('reservations:manage')
   @ApiOperation({
     summary: 'Check-out gosta — soba postaje vacant+dirty, folio se zatvara',
   })

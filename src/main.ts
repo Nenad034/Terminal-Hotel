@@ -39,6 +39,7 @@ async function bootstrap() {
       { type: 'apiKey', name: 'x-property-id', in: 'header' },
       'property-context',
     )
+    .addBearerAuth({ type: 'http', scheme: 'bearer', bearerFormat: 'JWT' }, 'access-token')
     .build();
 
   const document = SwaggerModule.createDocument(app, config);

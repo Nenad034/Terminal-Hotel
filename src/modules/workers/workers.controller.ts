@@ -1,6 +1,7 @@
 import { Controller, Post, Body } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBody } from '@nestjs/swagger';
 import { WorkersService } from './workers.service';
+import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 
 @ApiTags('Workers')
 @Controller('workers')
@@ -8,6 +9,7 @@ export class WorkersController {
   constructor(private readonly workersService: WorkersService) {}
 
   @Post('ttl-sweep')
+  @RequirePermissions('workers:manage')
   @ApiOperation({
     summary: 'Ručno pokreni TTL sweep (za testiranje)',
     description:
@@ -19,6 +21,7 @@ export class WorkersController {
   }
 
   @Post('night-audit')
+  @RequirePermissions('workers:manage')
   @ApiOperation({
     summary: 'Ručno pokreni noćni audit (za testiranje)',
     description:

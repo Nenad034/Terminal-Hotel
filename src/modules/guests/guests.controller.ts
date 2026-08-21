@@ -13,6 +13,7 @@ import { ApiTags, ApiOperation, ApiSecurity, ApiHeader } from '@nestjs/swagger';
 import { GuestsService } from './guests.service';
 import { CreateGuestDto, UpdateGuestDto, GuestSearchDto } from './dto/guest.dto';
 import { PropertyId } from '../../common/decorators/tenant.decorator';
+import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 
 @ApiTags('Guests')
 @ApiSecurity('property-context')
@@ -22,6 +23,7 @@ export class GuestsController {
   constructor(private readonly guestsService: GuestsService) {}
 
   @Post()
+  @RequirePermissions('guests:manage')
   @ApiOperation({
     summary: 'Kreiraj/pronađi gosta (dedup po email-u unutar organizacije)',
     description:
@@ -54,6 +56,7 @@ export class GuestsController {
   }
 
   @Patch(':id')
+  @RequirePermissions('guests:manage')
   @ApiOperation({ summary: 'Ažuriraj profil gosta' })
   updateGuest(
     @Headers('x-organization-id') organizationId: string,
@@ -64,6 +67,7 @@ export class GuestsController {
   }
 
   @Delete(':id/gdpr')
+  @RequirePermissions('guests:manage')
   @ApiOperation({
     summary: 'GDPR pravo na brisanje — anonimizacija PII podataka',
     description:

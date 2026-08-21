@@ -16,6 +16,7 @@ import {
   RoomFilterDto,
 } from './dto/room.dto';
 import { PropertyId } from '../../common/decorators/tenant.decorator';
+import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 
 @ApiTags('Properties & Rooms')
 @ApiSecurity('property-context')
@@ -26,6 +27,7 @@ export class RoomsController {
   // ─── Room Types ─────────────────────────────────────────────────────────────
 
   @Post('room-types')
+  @RequirePermissions('rooms:manage')
   @ApiOperation({ summary: 'Kreiraj tip sobe' })
   createRoomType(@PropertyId() propertyId: string, @Body() dto: CreateRoomTypeDto) {
     return this.roomsService.createRoomType(propertyId, dto);
@@ -46,6 +48,7 @@ export class RoomsController {
   // ─── Rooms ──────────────────────────────────────────────────────────────────
 
   @Post('rooms')
+  @RequirePermissions('rooms:manage')
   @ApiOperation({ summary: 'Dodaj fizičku sobu' })
   createRoom(@PropertyId() propertyId: string, @Body() dto: CreateRoomDto) {
     return this.roomsService.createRoom(propertyId, dto);
@@ -71,6 +74,7 @@ export class RoomsController {
   }
 
   @Patch('rooms/:id/status')
+  @RequirePermissions('rooms:manage')
   @ApiOperation({
     summary: 'Ažuriraj status sobe — housekeeping/recepcija',
     description:
